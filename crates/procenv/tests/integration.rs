@@ -692,7 +692,10 @@ mod serde_format_tests {
         }
 
         let config = FormatConfig::from_env().expect("should load");
-        assert!(config.optional.is_none(), "Optional field should be None when env var missing");
+        assert!(
+            config.optional.is_none(),
+            "Optional field should be None when env var missing"
+        );
 
         unsafe {
             std::env::remove_var("TEST_REQUIRED_JSON");
