@@ -172,6 +172,7 @@ fn insert_nested(map: &mut serde_json::Map<String, Value>, parts: &[&str], value
 // PUTTING IT TOGETHER
 // ============================================================================
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct DatabaseConfig {
     host: String,
@@ -179,6 +180,7 @@ struct DatabaseConfig {
     name: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct Config {
     debug: bool,

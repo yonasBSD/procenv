@@ -10,6 +10,7 @@
 use procenv::EnvConfig;
 
 /// Database configuration
+#[allow(dead_code)]
 #[derive(EnvConfig)]
 struct DatabaseConfig {
     /// Database connection URL
@@ -26,6 +27,7 @@ struct DatabaseConfig {
 }
 
 /// Application configuration
+#[allow(dead_code)]
 #[derive(EnvConfig)]
 struct AppConfig {
     /// Application name displayed in logs
