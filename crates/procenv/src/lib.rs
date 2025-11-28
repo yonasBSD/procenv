@@ -69,7 +69,7 @@ pub enum Error {
 
         /// The underlying parse error from `FromStr`.
         ///
-        /// Note: We use a plain field (not #[diagnostic_source]) because std
+        /// Note: We use a plain field (not `#[diagnostic_source]`) because std
         /// parse errors don't implement Diagnostic. The error chain is still
         /// displayed via std::error::Error::source() when using miette::Report.
         source: Box<dyn StdError + Send + Sync>,
