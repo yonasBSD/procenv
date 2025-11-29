@@ -71,39 +71,99 @@ pub fn extract_doc_comment(field: &Field) -> Option<String> {
     }
 }
 
-/// Distinguishes between regular env fields and flattened nested configs.
+/// Distinguishes between regular environment variable fields and flattened nested configs.
+///
+/// This enum is the result of parsing a field's `#[env(...)]` attribute.
+/// It determines how the field's value will be loaded.
+///
+/// # Variants
+///
+/// - `Env(EnvAttr)` - Regular field loaded from an environment variable
+/// - `Flatten` - Nested config struct whose fields are loaded recursively
+///
+/// # Example
+///
+/// ```ignore
+/// #[env(var = "DATABASE_URL")]  // → FieldConfig::Env(...)
+/// database_url: String,
+///
+/// #[env(flatten)]               // → FieldConfig::Flatten
+/// database: DatabaseConfig,
+/// ```
 pub enum FieldConfig {
-    /// Regular field: `#[env(var = "NAME", ...)]`
+    /// Regular field loaded from an environment variable.
+    ///
+    /// Contains all the parsed options from `#[env(var = "...", ...)]`.
     Env(EnvAttr),
 
-    /// Flattened nested config: `#[env(flatten)]`
+    /// Flattened nested configuration struct.
+    ///
+    /// The nested type must also derive `EnvConfig`. Its fields are
+    /// loaded recursively and errors are merged into the parent.
     Flatten,
 }
 
 /// CLI argument configuration for a field.
+///
+/// Parsed from `arg` and `short` options in `#[env(...)]` attribute.
+/// When present, enables the `from_args()` method for CLI parsing.
+///
+/// # Example
+///
+/// ```ignore
+/// #[env(var = "PORT", arg = "port", short = 'p')]
+/// port: u16,
+/// // Enables: --port 8080 or -p 8080
+/// ```
 #[derive(Clone, Debug, Default)]
 pub struct CliAttr {
-    /// The long argument name (e.g., "database-url" for --database-url)
+    /// The long argument name (e.g., `"port"` for `--port`).
     pub long: Option<String>,
 
-    /// Optional short flag (e.g., 'd' for -d)
+    /// Optional short flag (e.g., `'p'` for `-p`).
     pub short: Option<char>,
 }
 
 /// Profile-specific default values for a field.
 ///
-/// Parsed from `#[profile(dev = "value1", prod = "value2")]` attribute.
+/// Parsed from the `#[profile(...)]` attribute on a field.
+/// Allows different default values based on the active profile
+/// (e.g., dev, staging, prod).
+///
+/// # Example
+///
+/// ```ignore
+/// #[env(var = "DATABASE_URL")]
+/// #[profile(dev = "postgres://localhost/dev", prod = "postgres://prod/app")]
+/// database_url: String,
+/// ```
+///
+/// When `APP_ENV=dev`, the default becomes `postgres://localhost/dev`.
 #[derive(Clone, Debug, Default)]
 pub struct ProfileAttr {
-    /// Map of profile name -> default value for that profile
-    /// e.g., {"dev": "localhost", "prod": "prod-db.internal"}
+    /// Map of profile name to default value for that profile.
+    ///
+    /// Example: `{"dev": "localhost", "prod": "prod-db.internal"}`
     pub values: HashMap<String, String>,
 }
 
 /// The parsed result of an `#[env(...)]` attribute.
 ///
-/// This struct holds all the configuration options extracted from a field's
-/// attribute. It is created by `Parser::parse_field_config()`.
+/// This struct contains all configuration options extracted from a field's
+/// attribute. It is created by [`Parser::parse_field_config()`].
+///
+/// # Field Options
+///
+/// | Option | Type | Description |
+/// |--------|------|-------------|
+/// | `var` | Required | Environment variable name |
+/// | `default` | Optional | Default value if env var missing |
+/// | `optional` | Flag | Field becomes `Option<T>` |
+/// | `secret` | Flag | Mask value in output |
+/// | `no_prefix` | Flag | Skip struct-level prefix |
+/// | `arg` | Optional | CLI argument name |
+/// | `short` | Optional | CLI short flag |
+/// | `format` | Optional | Serde format (json/toml/yaml) |
 pub struct EnvAttr {
     /// The name of the environment variable to read (required).
     /// Example: `var = "DATABASE_URL"` → `var_name = "DATABASE_URL"`
@@ -142,7 +202,21 @@ pub struct EnvAttr {
 /// Builder pattern parser for `#[env(...)]` attributes.
 ///
 /// This struct accumulates parsed options as we iterate through the attribute's
-/// contents, then validates and builds the final `EnvAttr`.
+/// contents, then validates and builds the final [`EnvAttr`] or [`FieldConfig`].
+///
+/// # Usage
+///
+/// The primary entry point is [`Parser::parse_field_config()`], which parses
+/// a field's attributes and returns the appropriate configuration.
+///
+/// # Validation
+///
+/// The parser enforces these rules:
+/// - `var` is required for non-flatten fields
+/// - `default` and `optional` cannot be used together
+/// - `short` requires `arg` to be set
+/// - `flatten` cannot be combined with other options
+/// - `format` must be one of: `json`, `toml`, `yaml`
 #[derive(Default)]
 pub struct Parser {
     /// Accumulated variable name (from `var = "..."`)
@@ -510,27 +584,62 @@ impl FileConfig {
 /// The parsed result of an `#[env_config(...)]` struct-level attribute.
 ///
 /// This struct holds configuration that applies to the entire struct,
-/// such as dotenv file loading settings and config file paths.
+/// such as environment variable prefix, dotenv file loading, config files,
+/// and profile settings.
+///
+/// # Struct-Level Options
+///
+/// | Option | Description |
+/// |--------|-------------|
+/// | `prefix = "APP_"` | Prefix added to all env var names |
+/// | `dotenv` | Load `.env` file from current directory |
+/// | `dotenv = ".env.local"` | Load specific dotenv file |
+/// | `file = "config.toml"` | Load required config file |
+/// | `file_optional = "..."` | Load optional config file |
+/// | `profile_env = "APP_ENV"` | Env var for profile selection |
+/// | `profiles = ["dev", "prod"]` | Valid profile names |
+///
+/// # Example
+///
+/// ```ignore
+/// #[derive(EnvConfig)]
+/// #[env_config(
+///     prefix = "APP_",
+///     dotenv,
+///     file_optional = "config.toml",
+///     profile_env = "APP_ENV",
+///     profiles = ["dev", "staging", "prod"]
+/// )]
+/// struct Config {
+///     // ...
+/// }
+/// ```
 #[derive(Clone, Debug, Default)]
 pub struct EnvConfigAttr {
-    /// Dotenv configuration: None (disabled), Some(DotenvConfig) (enabled)
+    /// Dotenv configuration: `None` (disabled) or `Some(DotenvConfig)` (enabled).
     pub dotenv: Option<DotenvConfig>,
 
-    /// Prefix to append to all environment variable names
-    /// Generated from: `#[env_config(prefix = "APP_")]`
+    /// Prefix prepended to all environment variable names.
+    ///
+    /// For example, with `prefix = "APP_"`, a field with `var = "PORT"`
+    /// will read from `APP_PORT`.
     pub prefix: Option<String>,
 
-    /// Config files to load (in order, later files override earlier)
-    /// Generated from: `#[env_config(file = "config.toml")]`
-    /// or `#[env_config(file = ["config.toml", "config.local.toml"])]`
+    /// Config files to load (in order, later files override earlier).
+    ///
+    /// Supports both required and optional files.
     pub files: Vec<FileConfig>,
 
-    /// Environment variable that selects the active profile (Phase 16)
-    /// Generated from: `#[env_config(profile_env = "APP_ENV")]`
+    /// Environment variable that selects the active profile.
+    ///
+    /// For example, `profile_env = "APP_ENV"` means the value of
+    /// `APP_ENV` determines which profile defaults to use.
     pub profile_env: Option<String>,
 
-    /// Valid profile names (Phase 16)
-    /// Generated from: `#[env_config(profiles = ["dev", "staging", "prod"])]`
+    /// Valid profile names (validates the profile env var value).
+    ///
+    /// If set, loading fails when the profile env var contains
+    /// a value not in this list.
     pub profiles: Option<Vec<String>>,
 }
 

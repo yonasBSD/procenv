@@ -2,20 +2,84 @@
 //!
 //! This module provides utilities for loading configuration from files
 //! and merging multiple configuration sources with proper layering.
+//! It is enabled with the `file` feature flag.
 //!
 //! # Supported Formats
 //!
-//! - **JSON** - Always available with the `file` feature
-//! - **TOML** - Available with the `toml` feature
-//! - **YAML** - Available with the `yaml` feature
+//! | Format | Feature Flag | Extensions |
+//! |--------|--------------|------------|
+//! | JSON | `file` (always) | `.json` |
+//! | TOML | `toml` | `.toml` |
+//! | YAML | `yaml` | `.yaml`, `.yml` |
 //!
 //! # Layering Priority
 //!
 //! Configuration sources are merged in this order (lowest to highest priority):
-//! 1. Compiled defaults (from `#[env(default = "...")]`)
-//! 2. Config files (in order specified)
-//! 3. `.env` file (if `dotenv` feature enabled)
-//! 4. Environment variables (highest priority)
+//!
+//! 1. **Compiled defaults** - `#[env(default = "...")]`
+//! 2. **Config files** - In order specified (later files override earlier)
+//! 3. **Dotenv files** - `.env` file values
+//! 4. **Environment variables** - Highest priority, always wins
+//!
+//! # Example Usage
+//!
+//! ## With Derive Macro
+//!
+//! ```rust,ignore
+//! use procenv::EnvConfig;
+//! use serde::Deserialize;
+//!
+//! #[derive(EnvConfig, Deserialize)]
+//! #[env_config(
+//!     file_optional = "config.toml",
+//!     file_optional = "config.local.toml",
+//!     prefix = "APP_"
+//! )]
+//! struct Config {
+//!     #[env(var = "DATABASE_URL")]
+//!     database_url: String,
+//!
+//!     #[env(var = "PORT", default = "8080")]
+//!     port: u16,
+//! }
+//!
+//! // Loads: defaults -> config.toml -> config.local.toml -> env vars
+//! let config = Config::from_config()?;
+//! ```
+//!
+//! ## With ConfigBuilder (Manual)
+//!
+//! ```rust,ignore
+//! use procenv::file::{ConfigBuilder, FileFormat};
+//! use serde::Deserialize;
+//!
+//! #[derive(Deserialize)]
+//! struct DatabaseConfig {
+//!     host: String,
+//!     port: u16,
+//! }
+//!
+//! let config: DatabaseConfig = ConfigBuilder::new()
+//!     .file_optional("config.toml")
+//!     .file_optional("config.local.toml")
+//!     .env_prefix("DB_")
+//!     .build()?;
+//! ```
+//!
+//! # Error Handling
+//!
+//! Parse errors include source location information when available,
+//! enabling rich diagnostic output via [`miette`]:
+//!
+//! ```text
+//! Error: TOML parse error in config.toml
+//!    ╭─[config.toml:3:8]
+//!    │
+//!  3 │ port = "not_a_number"
+//!    │        ^^^^^^^^^^^^^^ expected integer, found string
+//!    ╰────
+//!   help: check for missing quotes, invalid values, or syntax errors
+//! ```
 
 // FileError is intentionally large to provide rich miette diagnostics with source spans
 #![allow(clippy::result_large_err)]
@@ -42,22 +106,63 @@ use crate::Error;
 // =============================================================================
 
 /// Supported configuration file formats.
+///
+/// The format is automatically detected from the file extension when using
+/// [`FileUtils::parse_file`] or [`ConfigBuilder::file`]. You can also
+/// explicitly specify a format with [`FileUtils::parse_str`].
+///
+/// # Feature Flags
+///
+/// - `file` - Enables JSON support (always included)
+/// - `toml` - Enables TOML support
+/// - `yaml` - Enables YAML support
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use procenv::file::FileFormat;
+/// use std::path::Path;
+///
+/// // Automatic detection from path
+/// assert_eq!(FileFormat::from_path(Path::new("config.json")), Some(FileFormat::Json));
+/// assert_eq!(FileFormat::from_path(Path::new("config.toml")), Some(FileFormat::Toml));
+/// assert_eq!(FileFormat::from_path(Path::new("config.yaml")), Some(FileFormat::Yaml));
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FileFormat {
-    /// JSON format (.json)
+    /// JSON format (`.json` extension).
+    ///
+    /// Always available with the `file` feature.
     Json,
 
-    /// TOML format (.toml)
+    /// TOML format (`.toml` extension).
+    ///
+    /// Requires the `toml` feature flag.
     #[cfg(feature = "toml")]
     Toml,
 
-    /// YAML format (.yaml, .yml)
+    /// YAML format (`.yaml` or `.yml` extension).
+    ///
+    /// Requires the `yaml` feature flag.
     #[cfg(feature = "yaml")]
     Yaml,
 }
 
 impl FileFormat {
-    /// Detect file format from file extension.
+    /// Detects the file format from the file extension.
+    ///
+    /// Returns `None` if the extension is not recognized or if the
+    /// required feature flag is not enabled.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use procenv::file::FileFormat;
+    /// use std::path::Path;
+    ///
+    /// let format = FileFormat::from_path(Path::new("config.toml"));
+    /// assert_eq!(format, Some(FileFormat::Toml));
+    /// ```
     pub fn from_path(path: &Path) -> Option<Self> {
         let ext = path.extension()?.to_str()?;
 
@@ -90,8 +195,28 @@ impl FileFormat {
 
 /// Error type for file parsing operations with rich diagnostics.
 ///
-/// Uses miette for beautiful terminal output with source code snippets
-/// and line/column information when available.
+/// This enum represents all file-related errors that can occur during
+/// configuration loading. It integrates with [`miette`] to provide
+/// beautiful terminal output with source code snippets and precise
+/// error locations.
+///
+/// # Diagnostic Features
+///
+/// - **Source spans** - Points to the exact location of syntax errors
+/// - **Help text** - Provides suggestions for fixing common issues
+/// - **Error codes** - Unique codes for each error type
+///
+/// # Example Output
+///
+/// ```text
+/// Error: TOML parse error in config.toml
+///    ╭─[config.toml:5:12]
+///    │
+///  5 │ port = "8080"
+///    │        ^^^^^^ expected integer
+///    ╰────
+///   help: check for missing quotes, invalid values, or syntax errors
+/// ```
 #[derive(Debug, Diagnostic, thiserror::Error)]
 pub enum FileError {
     /// Configuration file not found
@@ -215,13 +340,34 @@ struct ValueOrigin {
     format: FileFormat,
 }
 
-/// Tracks origins of all values for precise error reporting.
+/// Tracks the origin of configuration values for precise error reporting.
+///
+/// This struct maintains a mapping of configuration paths (e.g., `"database.port"`)
+/// to their source files. It's used internally by [`ConfigBuilder`] to provide
+/// accurate source locations in error messages.
+///
+/// When a type mismatch or parse error occurs during deserialization,
+/// `OriginTracker` enables the error message to point to the exact file
+/// and location where the problematic value was defined.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let (config, origins) = ConfigBuilder::new()
+///     .file("config.toml")
+///     .build_with_origins()?;
+///
+/// // Check where a specific field came from
+/// if let Some(path) = origins.get_file_source("database.port") {
+///     println!("database.port defined in: {}", path.display());
+/// }
+/// ```
 #[derive(Clone, Debug, Default)]
 pub struct OriginTracker {
-    /// Maps JSON paths (e.g., "database.port") to their source file
+    /// Maps JSON paths (e.g., `"database.port"`) to their source file.
     origins: HashMap<String, ValueOrigin>,
 
-    /// List of all source files in priority order(last = highest priority)
+    /// List of all source files in priority order (last = highest priority).
     sources: Vec<ValueOrigin>,
 }
 
@@ -340,6 +486,59 @@ impl OriginTracker {
 // ============================================================================
 
 /// Builder for layered configuration loading.
+///
+/// `ConfigBuilder` provides a fluent API for loading configuration from
+/// multiple sources with proper layering. Sources are merged in order,
+/// with later sources overriding earlier ones.
+///
+/// # Layering Order
+///
+/// 1. **Defaults** - Initial values set via [`defaults()`](Self::defaults)
+/// 2. **Config files** - Added via [`file()`](Self::file) or [`file_optional()`](Self::file_optional)
+/// 3. **Environment variables** - Filtered by [`env_prefix()`](Self::env_prefix)
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use procenv::file::ConfigBuilder;
+/// use serde::Deserialize;
+///
+/// #[derive(Deserialize)]
+/// struct Config {
+///     database_url: String,
+///     port: u16,
+///     debug: bool,
+/// }
+///
+/// let config: Config = ConfigBuilder::new()
+///     .defaults(serde_json::json!({
+///         "port": 8080,
+///         "debug": false
+///     }))
+///     .file_optional("config.toml")
+///     .file_optional("config.local.toml")
+///     .env_prefix("APP_")
+///     .build()?;
+/// ```
+///
+/// # Deep Merging
+///
+/// Nested objects are merged recursively. For example, if `config.toml` has:
+///
+/// ```toml
+/// [database]
+/// host = "localhost"
+/// port = 5432
+/// ```
+///
+/// And `config.local.toml` has:
+///
+/// ```toml
+/// [database]
+/// port = 5433
+/// ```
+///
+/// The result will have `database.host = "localhost"` and `database.port = 5433`.
 pub struct ConfigBuilder {
     base: SJSON::Value,
     files: Vec<(PathBuf, bool)>,
@@ -355,7 +554,7 @@ impl Default for ConfigBuilder {
 }
 
 impl ConfigBuilder {
-    /// Create a new configuration builder.
+    /// Creates a new configuration builder with empty defaults.
     pub fn new() -> Self {
         Self {
             base: SJSON::Value::Object(SJSON::Map::new()),
@@ -366,7 +565,23 @@ impl ConfigBuilder {
         }
     }
 
-    /// Set default values from a serializable struct.
+    /// Sets default values from a serializable struct.
+    ///
+    /// These defaults are the base layer and will be overridden by
+    /// config files and environment variables.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// #[derive(Serialize)]
+    /// struct Defaults {
+    ///     port: u16,
+    ///     debug: bool,
+    /// }
+    ///
+    /// let builder = ConfigBuilder::new()
+    ///     .defaults(Defaults { port: 8080, debug: false });
+    /// ```
     pub fn defaults<T: Serialize>(mut self, defaults: T) -> Self {
         if let Ok(value) = SJSON::to_value(defaults) {
             self.base = value;
@@ -375,28 +590,80 @@ impl ConfigBuilder {
         self
     }
 
-    /// Set default values from a JSON value.
+    /// Sets default values from a raw JSON value.
+    ///
+    /// This is useful when you want to construct defaults dynamically
+    /// or when working with `serde_json::json!` macro.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let builder = ConfigBuilder::new()
+    ///     .defaults_value(serde_json::json!({
+    ///         "port": 8080,
+    ///         "debug": false
+    ///     }));
+    /// ```
     pub fn defaults_value(mut self, value: SJSON::Value) -> Self {
         self.base = value;
 
         self
     }
 
-    /// Add a required configuration file.
+    /// Adds a required configuration file.
+    ///
+    /// If this file does not exist, [`build()`](Self::build) will return
+    /// a [`FileError::NotFound`] error.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the configuration file
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let builder = ConfigBuilder::new()
+    ///     .file("config.toml");  // Must exist
+    /// ```
     pub fn file<P: AsRef<Path>>(mut self, path: P) -> Self {
         self.files.push((path.as_ref().to_path_buf(), true));
 
         self
     }
 
-    /// Add an optional configuration file.
+    /// Adds an optional configuration file.
+    ///
+    /// If this file does not exist, it is silently skipped.
+    /// This is useful for local override files that may not exist.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the configuration file
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let builder = ConfigBuilder::new()
+    ///     .file("config.toml")
+    ///     .file_optional("config.local.toml");  // OK if missing
+    /// ```
     pub fn file_optional<P: AsRef<Path>>(mut self, path: P) -> Self {
         self.files.push((path.as_ref().to_path_buf(), false));
 
         self
     }
 
-    /// Set the environment variable prefix.
+    /// Sets the environment variable prefix for overlay.
+    ///
+    /// Only environment variables starting with this prefix will be
+    /// considered. The prefix is stripped before matching to config keys.
+    ///
+    /// # Example
+    ///
+    /// With prefix `"APP_"`:
+    /// - `APP_DATABASE_HOST` → `database.host`
+    /// - `APP_PORT` → `port`
+    /// - `OTHER_VAR` → ignored
     pub fn env_prefix(mut self, prefix: impl Into<String>) -> Self {
         self.env_prefix = Some(prefix.into());
 
@@ -418,6 +685,21 @@ impl ConfigBuilder {
         self
     }
 
+    /// Merges all configuration sources and returns the raw JSON value.
+    ///
+    /// This is a lower-level method that returns the merged JSON value
+    /// along with origin tracking information. Use [`build()`](Self::build)
+    /// for type-safe deserialization.
+    ///
+    /// # Returns
+    ///
+    /// A tuple of:
+    /// - The merged JSON value
+    /// - An [`OriginTracker`] with source information for each path
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`FileError`] if a required file is missing or cannot be parsed.
     pub fn merge(mut self) -> Result<(SJSON::Value, OriginTracker), FileError> {
         // Layer files
         for (path, required) in self.files.clone() {
@@ -447,6 +729,33 @@ impl ConfigBuilder {
         Ok((self.base, self.origins))
     }
 
+    /// Builds the configuration by merging sources and deserializing.
+    ///
+    /// This is the primary method for loading configuration. It:
+    /// 1. Merges defaults, config files, and environment variables
+    /// 2. Deserializes the result into the target type
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - The configuration struct type (must implement `DeserializeOwned`)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - A required file is missing
+    /// - A file has invalid syntax
+    /// - The merged config cannot be deserialized to `T`
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use procenv::file::ConfigBuilder;
+    ///
+    /// let config: MyConfig = ConfigBuilder::new()
+    ///     .file("config.toml")
+    ///     .env_prefix("APP_")
+    ///     .build()?;
+    /// ```
     pub fn build<T: DeserializeOwned>(self) -> Result<T, Error> {
         let (result, _origins) = self.build_with_origins()?;
         Ok(result)
@@ -493,10 +802,24 @@ impl ConfigBuilder {
     }
 }
 
+/// Utilities for file parsing and value manipulation.
+///
+/// This struct provides static methods for:
+/// - Parsing configuration files in various formats
+/// - Converting between formats
+/// - Deep merging JSON values
+/// - Coercing string values to appropriate JSON types
+///
+/// Most users will interact with these utilities indirectly through
+/// [`ConfigBuilder`] or the derive macro. Direct use is available
+/// for advanced use cases.
 pub struct FileUtils;
 
 impl FileUtils {
-    /// Convert a byte offset to a SourceSpan with a reasonable length.
+    /// Converts a byte offset to a [`SourceSpan`] with a reasonable length.
+    ///
+    /// Used internally for error reporting to highlight the relevant
+    /// portion of a configuration file.
     pub(crate) fn offset_to_span(offset: usize, content: &str) -> SourceSpan {
         let remaining = &content[offset.min(content.len())..];
         let len = remaining
@@ -756,9 +1079,34 @@ impl FileUtils {
     // File Parsing
     // ============================================================================
 
-    /// Parse a configuration file into a JSON Value.
+    /// Parses a configuration file into a JSON value.
     ///
-    /// Returns `Ok(None)` if the file doesn't exist and `required` is false.
+    /// The file format is automatically detected from the extension.
+    /// Supports `.json`, `.toml` (with feature), and `.yaml`/`.yml` (with feature).
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the configuration file
+    /// * `required` - If `true`, returns an error when the file doesn't exist
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some(value))` - File was parsed successfully
+    /// - `Ok(None)` - File doesn't exist and `required` is `false`
+    /// - `Err(...)` - File doesn't exist (when required) or parse error
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use procenv::file::FileUtils;
+    /// use std::path::Path;
+    ///
+    /// // Required file (errors if missing)
+    /// let value = FileUtils::parse_file(Path::new("config.toml"), true)?;
+    ///
+    /// // Optional file (returns None if missing)
+    /// let value = FileUtils::parse_file(Path::new("config.local.toml"), false)?;
+    /// ```
     pub fn parse_file(path: &Path, required: bool) -> Result<Option<SJSON::Value>, FileError> {
         Self::parse_file_with_content(path, required).map(|opt| opt.map(|(v, _, _)| v))
     }
@@ -809,7 +1157,29 @@ impl FileUtils {
         Ok(Some((value, content, format)))
     }
 
-    /// Parse a configuration string with explicit format.
+    /// Parses a configuration string with an explicit format.
+    ///
+    /// Unlike [`parse_file`](Self::parse_file), this method requires you to
+    /// specify the format explicitly since there's no filename to detect from.
+    ///
+    /// # Arguments
+    ///
+    /// * `content` - The configuration content as a string
+    /// * `format` - The format to parse as
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use procenv::file::{FileUtils, FileFormat};
+    ///
+    /// let toml_content = r#"
+    /// [database]
+    /// host = "localhost"
+    /// port = 5432
+    /// "#;
+    ///
+    /// let value = FileUtils::parse_str(toml_content, FileFormat::Toml)?;
+    /// ```
     pub fn parse_str(content: &str, format: FileFormat) -> Result<SJSON::Value, FileError> {
         let dummy_path = Path::new("<string>");
         match format {
@@ -867,7 +1237,33 @@ impl FileUtils {
     // Value Merging
     // ============================================================================
 
-    /// Deep merge two JSON values.
+    /// Deep merges two JSON values, with overlay taking precedence.
+    ///
+    /// For objects, keys from `overlay` are recursively merged into `base`.
+    /// For all other types (arrays, primitives), `overlay` replaces `base`.
+    ///
+    /// # Arguments
+    ///
+    /// * `base` - The base value (modified in place)
+    /// * `overlay` - The overlay value (takes precedence)
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use procenv::file::FileUtils;
+    /// use serde_json::json;
+    ///
+    /// let mut base = json!({
+    ///     "database": { "host": "localhost", "port": 5432 }
+    /// });
+    /// let overlay = json!({
+    ///     "database": { "port": 5433 }
+    /// });
+    ///
+    /// FileUtils::deep_merge(&mut base, overlay);
+    ///
+    /// // Result: { "database": { "host": "localhost", "port": 5433 } }
+    /// ```
     pub fn deep_merge(base: &mut SJSON::Value, overlay: SJSON::Value) {
         match (base, overlay) {
             (SJSON::Value::Object(base_map), SJSON::Value::Object(overlay_map)) => {
@@ -889,7 +1285,28 @@ impl FileUtils {
     // Environment Variable Conversion
     // ============================================================================
 
-    /// Coerce a string value to an appropriate JSON type.
+    /// Coerces a string value to an appropriate JSON type.
+    ///
+    /// Attempts to parse the string as (in order):
+    /// 1. Boolean (`true`/`false`, case-insensitive)
+    /// 2. Integer (`i64`)
+    /// 3. Float (`f64`, only if contains `.`)
+    /// 4. String (fallback)
+    ///
+    /// This is used when converting environment variables to JSON for
+    /// merging with config file values.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use procenv::file::FileUtils;
+    /// use serde_json::Value;
+    ///
+    /// assert_eq!(FileUtils::coerce_value("true"), Value::Bool(true));
+    /// assert_eq!(FileUtils::coerce_value("42"), Value::Number(42.into()));
+    /// assert_eq!(FileUtils::coerce_value("3.14"), Value::Number(/* 3.14 */));
+    /// assert_eq!(FileUtils::coerce_value("hello"), Value::String("hello".into()));
+    /// ```
     pub fn coerce_value(s: &str) -> SJSON::Value {
         if s.eq_ignore_ascii_case("true") {
             return SJSON::Value::Bool(true);

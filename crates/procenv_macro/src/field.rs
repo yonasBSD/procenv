@@ -1,19 +1,58 @@
 //! Field processing and code generation for EnvConfig derive macro.
 //!
-//! This module is the heart of the code generation logic. It defines:
+//! This module is the heart of the code generation logic. It classifies
+//! struct fields based on their attributes and generates appropriate
+//! loading code for each field type.
 //!
-//! 1. The `FieldGenerator` trait - interface for generating field-specific code
-//! 2. Three implementations:
-//!    - `RequiredField` - errors if env var is missing
-//!    - `DefaultField` - uses default value if missing
-//!    - `OptionalField` - returns None if missing
-//! 3. The `parse_field` factory function that chooses the right type
+//! # Field Types
 //!
-//! ## Design Pattern
+//! Fields are classified into one of these types based on attributes:
 //!
-//! This uses the Strategy pattern via trait objects. Each field type knows
-//! how to generate its own loading and assignment code, and the expander
-//! can treat them polymorphically.
+//! | Type | Attribute | Behavior |
+//! |------|-----------|----------|
+//! | [`RequiredField`] | `var = "..."` only | Errors if missing |
+//! | [`DefaultField`] | `default = "..."` | Uses default if missing |
+//! | [`OptionalField`] | `optional` | Returns `None` if missing |
+//! | [`FlattenField`] | `flatten` | Loads nested `EnvConfig` struct |
+//! | [`SecretStringField`] | `SecretString` type | Wraps in `SecretString` |
+//! | [`SecretBoxField`] | `SecretBox<T>` type | Wraps in `SecretBox<T>` |
+//!
+//! # Architecture
+//!
+//! This module uses the Strategy pattern via trait objects. The [`FieldGenerator`]
+//! trait defines the interface for code generation, and each field type provides
+//! its own implementation.
+//!
+//! ```text
+//! ┌─────────────────┐
+//! │   syn::Field    │  Raw AST from derive input
+//! └────────┬────────┘
+//!          │
+//!          ▼
+//! ┌─────────────────┐
+//! │  FieldFactory   │  Parses attributes and classifies field
+//! │  ::parse_field  │
+//! └────────┬────────┘
+//!          │  Box<dyn FieldGenerator>
+//!          ▼
+//! ┌─────────────────┐
+//! │ FieldGenerator  │  Trait object for code generation
+//! │  implementations │
+//! └────────┬────────┘
+//!          │
+//!          ├─────────────────────────────────────┐
+//!          ▼                                     ▼
+//! ┌─────────────────┐                   ┌─────────────────┐
+//! │ generate_loader │  Env var reading  │ generate_assign │  Struct init
+//! └─────────────────┘                   └─────────────────┘
+//! ```
+//!
+//! # Error Accumulation
+//!
+//! All field types follow the error accumulation pattern:
+//! - Errors are pushed to a `Vec<Error>` rather than returning early
+//! - The local variable is `Option<T>` to allow continuing after errors
+//! - At the end, if errors exist, they're returned; otherwise `.unwrap()` is safe
 
 use proc_macro2::TokenStream as QuoteStream;
 use quote::{format_ident, quote};
@@ -27,25 +66,45 @@ use crate::parse::{CliAttr, FieldConfig, Parser, ProfileAttr, extract_doc_commen
 // EnvExampleEntry - Info for .env.example generation
 // ============================================================================
 
-/// Information about an environment variable for .env.example generation.
+/// Information about an environment variable for `.env.example` generation.
+///
+/// This struct contains all the metadata needed to generate a single entry
+/// in a `.env.example` template file. It is returned by
+/// [`FieldGenerator::example_entries()`].
+///
+/// # Generated Format
+///
+/// The [`format()`](Self::format) method produces output like:
+///
+/// ```text
+/// # Database connection URL (required, type: String)
+/// DATABASE_URL=
+///
+/// # Server port (type: u16)
+/// # PORT=8080
+/// ```
+///
+/// - Required fields without defaults show `VAR=`
+/// - Fields with defaults show `# VAR=default` (commented out)
+/// - Doc comments, requirements, and type hints appear as comments above
 #[derive(Clone, Debug)]
 pub struct EnvExampleEntry {
-    /// The environment variable name (with prefix applied)
+    /// The environment variable name (with prefix applied if configured).
     pub var_name: String,
 
-    /// Documentation comment from the field
+    /// Documentation comment extracted from the field's doc attributes.
     pub doc: Option<String>,
 
-    /// Whether this field is required (no default, not optional)
+    /// Whether this field is required (no default, not optional).
     pub required: bool,
 
-    /// Default value if any
+    /// Default value if the field has one.
     pub default: Option<String>,
 
-    /// Whether this is a secret field
+    /// Whether this field is marked as secret.
     pub secret: bool,
 
-    /// Type name for hints (e.g., "u16", "String")
+    /// Type name for documentation hints (e.g., `"u16"`, `"String"`).
     pub type_hint: String,
 }
 
@@ -96,11 +155,39 @@ impl EnvExampleEntry {
 // FieldGenerator Trait
 // ============================================================================
 
-/// Trait for generating code for different field types.
+/// Trait for generating field-specific code in the derive macro.
 ///
-/// Each field type (required, default, optional) implements this trait
-/// to generate its specific loading and assignment code. This allows
-/// the expander to work with any field type polymorphically.
+/// This trait is the core abstraction that enables different field types
+/// to be handled polymorphically. Each implementation generates appropriate
+/// code for reading environment variables, handling errors, and constructing
+/// the struct.
+///
+/// # Implementations
+///
+/// | Type | When Used |
+/// |------|-----------|
+/// | [`RequiredField`] | `#[env(var = "...")]` with no default |
+/// | [`DefaultField`] | `#[env(var = "...", default = "...")]` |
+/// | [`OptionalField`] | `#[env(var = "...", optional)]` |
+/// | [`FlattenField`] | `#[env(flatten)]` |
+/// | [`SecretStringField`] | Field type is `SecretString` |
+/// | [`SecretBoxField`] | Field type is `SecretBox<T>` |
+///
+/// # Generated Code Pattern
+///
+/// Each implementation generates code following this pattern:
+///
+/// ```ignore
+/// // Loader code (generate_loader)
+/// let field_name: Option<T> = match std::env::var("VAR") {
+///     Ok(val) => { /* parse and return Some(v) or push error */ }
+///     Err(e) => { /* push error if required, return None */ }
+/// };
+///
+/// // Assignment code (generate_assignment)
+/// Self { field_name: field_name.unwrap() }  // for required/default
+/// Self { field_name }                        // for optional
+/// ```
 pub trait FieldGenerator {
     /// Generate code to load this field's value from the environment.
     ///
@@ -1275,6 +1362,29 @@ impl FieldGenerator for FlattenField {
     }
 }
 
+/// Factory for creating field generators from parsed field definitions.
+///
+/// This struct provides the [`parse_field`](Self::parse_field) method that
+/// examines a field's type and attributes to create the appropriate
+/// [`FieldGenerator`] implementation.
+///
+/// # Classification Logic
+///
+/// ```text
+/// Field
+///   │
+///   ├─► Has `flatten` attr? ──► FlattenField
+///   │
+///   ├─► Type is SecretString? ──► SecretStringField
+///   │
+///   ├─► Type is SecretBox<T>? ──► SecretBoxField
+///   │
+///   ├─► Has `optional` attr? ──► OptionalField
+///   │
+///   ├─► Has `default` attr? ──► DefaultField
+///   │
+///   └─► Otherwise ──► RequiredField
+/// ```
 pub struct FieldFactory;
 
 impl FieldGenerator for SecretBoxField {

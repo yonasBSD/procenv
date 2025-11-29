@@ -1,3 +1,114 @@
+//! # procenv
+//!
+//! A procedural macro library for type-safe environment variable configuration in Rust.
+//!
+//! `procenv` eliminates boilerplate code when loading configuration from environment variables
+//! by generating type-safe loading logic at compile time. It provides comprehensive error handling,
+//! secret masking, and support for multiple configuration sources including `.env` files,
+//! config files (TOML/JSON/YAML), CLI arguments, and environment variable profiles.
+//!
+//! ## Features
+//!
+//! - **Type-safe parsing** - Automatic conversion using `FromStr` or serde deserialization
+//! - **Error accumulation** - Reports all configuration errors at once, not just the first
+//! - **Secret masking** - Protects sensitive values in `Debug` output and error messages
+//! - **Multiple sources** - Supports env vars, `.env` files, config files, and CLI arguments
+//! - **Source attribution** - Tracks where each value originated for debugging
+//! - **Profile support** - Environment-specific defaults (dev, staging, prod)
+//! - **Rich diagnostics** - Beautiful error messages via [`miette`]
+//!
+//! ## Quick Start
+//!
+//! ```rust,ignore
+//! use procenv::EnvConfig;
+//!
+//! #[derive(EnvConfig)]
+//! struct Config {
+//!     #[env(var = "DATABASE_URL")]
+//!     db_url: String,
+//!
+//!     #[env(var = "PORT", default = "8080")]
+//!     port: u16,
+//!
+//!     #[env(var = "API_KEY", secret)]
+//!     api_key: String,
+//!
+//!     #[env(var = "DEBUG_MODE", optional)]
+//!     debug: Option<bool>,
+//! }
+//!
+//! fn main() -> Result<(), procenv::Error> {
+//!     let config = Config::from_env()?;
+//!     println!("Server running on port {}", config.port);
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Field Attributes
+//!
+//! | Attribute | Description |
+//! |-----------|-------------|
+//! | `var = "NAME"` | Environment variable name (required) |
+//! | `default = "value"` | Default value if env var is missing |
+//! | `optional` | Field becomes `Option<T>`, `None` if missing |
+//! | `secret` | Masks value in Debug output and errors |
+//! | `no_prefix` | Skip struct-level prefix for this field |
+//! | `flatten` | Embed nested config struct |
+//! | `format = "json"` | Parse value as JSON/TOML/YAML |
+//!
+//! ## Struct Attributes
+//!
+//! ```rust,ignore
+//! #[derive(EnvConfig)]
+//! #[env_config(
+//!     prefix = "APP_",                           // Prefix all env vars
+//!     dotenv,                                    // Load .env file
+//!     file_optional = "config.toml",             // Optional config file
+//!     profile_env = "APP_ENV",                   // Profile selection var
+//!     profiles = ["dev", "staging", "prod"]      // Valid profiles
+//! )]
+//! struct Config {
+//!     // ...
+//! }
+//! ```
+//!
+//! ## Generated Methods
+//!
+//! The derive macro generates several methods on your struct:
+//!
+//! | Method | Description |
+//! |--------|-------------|
+//! | `from_env()` | Load from environment variables |
+//! | `from_env_with_sources()` | Load with source attribution |
+//! | `from_config()` | Load from files + env vars (layered) |
+//! | `from_config_with_sources()` | Layered loading with source attribution |
+//! | `from_args()` | Load from CLI arguments + env |
+//! | `env_example()` | Generate `.env.example` template |
+//!
+//! ## Feature Flags
+//!
+//! | Feature | Description | Default |
+//! |---------|-------------|---------|
+//! | `file` | Config file support | No |
+//! | `toml` | TOML file parsing | No |
+//! | `yaml` | YAML file parsing | No |
+//! | `secrecy` | [`secrecy`] crate integration | No |
+//!
+//! ## Error Handling
+//!
+//! All errors are reported through the [`Error`] type, which integrates with
+//! [`miette`] for rich terminal diagnostics:
+//!
+//! ```rust,ignore
+//! match Config::from_env() {
+//!     Ok(config) => { /* use config */ }
+//!     Err(e) => {
+//!         // Pretty-print with miette for beautiful error output
+//!         eprintln!("{:?}", miette::Report::from(e));
+//!     }
+//! }
+//! ```
+
 #![allow(unused, reason = "False warnings")]
 
 pub use procenv_macro::EnvConfig;
@@ -19,8 +130,48 @@ use miette::{Diagnostic, Severity};
 
 /// Errors that can occur when loading configuration from environment variables.
 ///
-/// Each variant includes a unique error code for easy reference and
-/// contextual help messages to guide users toward resolution.
+/// This enum represents all possible failure modes when loading configuration.
+/// It integrates with [`miette`] to provide rich diagnostic output with error
+/// codes, help text, and source locations where applicable.
+///
+/// # Error Accumulation
+///
+/// The generated `from_env()` method accumulates all errors rather than
+/// failing on the first one. When multiple errors occur, they are wrapped
+/// in the [`Error::Multiple`] variant, allowing users to see all issues at once.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// match Config::from_env() {
+///     Ok(config) => { /* success */ }
+///     Err(Error::Missing { var, .. }) => {
+///         eprintln!("Missing required variable: {}", var);
+///     }
+///     Err(Error::Parse { var, expected_type, .. }) => {
+///         eprintln!("{} must be a valid {}", var, expected_type);
+///     }
+///     Err(Error::Multiple { errors }) => {
+///         eprintln!("{} configuration errors found", errors.len());
+///     }
+///     Err(e) => {
+///         // Pretty-print any error with miette
+///         eprintln!("{:?}", miette::Report::from(e));
+///     }
+/// }
+/// ```
+///
+/// # Diagnostic Codes
+///
+/// Each variant has a unique diagnostic code for easy identification:
+///
+/// | Code | Meaning |
+/// |------|---------|
+/// | `procenv::missing_var` | Required environment variable not set |
+/// | `procenv::invalid_utf8` | Variable contains non-UTF8 bytes |
+/// | `procenv::parse_error` | Value failed to parse as expected type |
+/// | `procenv::multiple_errors` | Multiple configuration errors occurred |
+/// | `procenv::invalid_profile` | Invalid profile name specified |
 #[derive(Diagnostic)]
 pub enum Error {
     /// A required environment variable was not set.
@@ -316,28 +467,80 @@ impl Error {
 // Source Attribution
 // ============================================================================
 
-/// Where a configuration value originated from.
+/// Indicates where a configuration value originated from.
+///
+/// This enum is used for source attribution, allowing you to track
+/// whether a value came from an environment variable, a config file,
+/// CLI arguments, or other sources. This is useful for debugging
+/// configuration issues and understanding the layering behavior.
+///
+/// # Priority Order
+///
+/// When using `from_config()` or `from_args()`, sources are checked
+/// in priority order (highest to lowest):
+///
+/// 1. **CLI arguments** - `--port 8080`
+/// 2. **Environment variables** - `PORT=8080`
+/// 3. **Dotenv files** - `.env` file
+/// 4. **Profile defaults** - `#[profile(dev = "...")]`
+/// 5. **Config files** - `config.toml`
+/// 6. **Macro defaults** - `#[env(default = "...")]`
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let (config, sources) = Config::from_env_with_sources()?;
+///
+/// for (field, source) in sources.iter() {
+///     match source.source {
+///         Source::Environment => println!("{}: from env", field),
+///         Source::DotenvFile(_) => println!("{}: from .env", field),
+///         Source::Default => println!("{}: using default", field),
+///         _ => {}
+///     }
+/// }
+/// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Source {
-    /// Value came from a CLI argument
+    /// Value was provided via a CLI argument (e.g., `--port 8080`).
+    ///
+    /// This has the highest priority and overrides all other sources.
     Cli,
 
-    /// Value came from an environment variable
+    /// Value was read directly from an environment variable.
+    ///
+    /// This indicates the variable was set in the process environment
+    /// before any `.env` file loading occurred.
     Environment,
 
-    /// Value came from a .env file (with optional path)
+    /// Value was loaded from a `.env` file.
+    ///
+    /// The optional [`PathBuf`] contains the path to the file if known.
+    /// When multiple `.env` files are loaded, later files override earlier ones.
     DotenvFile(Option<PathBuf>),
 
-    /// Value came from a configuration file (TOML, JSON, YAML)
+    /// Value was loaded from a configuration file (TOML, JSON, or YAML).
+    ///
+    /// The optional [`PathBuf`] contains the path to the file.
+    /// This source is used when `#[env_config(file = "...")]` is configured.
     ConfigFile(Option<PathBuf>),
 
-    /// Value came from a profile-specific default (Phase 16)
+    /// Value came from a profile-specific default.
+    ///
+    /// The string contains the profile name (e.g., "dev", "prod").
+    /// Profile defaults are specified with `#[profile(dev = "...")]`.
     Profile(String),
 
-    /// Value used the default specified in the attribute
+    /// Value came from the compile-time default in the attribute.
+    ///
+    /// This is the fallback when no environment variable, file, or
+    /// profile provides a value. Specified with `#[env(default = "...")]`.
     Default,
 
-    /// Value was not set (for optional fields)
+    /// No value was provided (for optional fields).
+    ///
+    /// This only applies to fields marked with `optional` that have
+    /// no value from any source. The field value will be `None`.
     NotSet,
 }
 
@@ -366,16 +569,33 @@ impl Display for Source {
 }
 
 /// Source information for a single configuration value.
+///
+/// This struct pairs an environment variable name with its [`Source`],
+/// indicating where the value was loaded from. It's used as an entry
+/// in [`ConfigSources`] for per-field source attribution.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let source = ValueSource::new("DATABASE_URL", Source::Environment);
+/// println!("{}", source);  // "DATABASE_URL: Environment variable"
+/// ```
 #[derive(Clone, Debug)]
 pub struct ValueSource {
-    /// The environment variable name
+    /// The environment variable name (e.g., `"DATABASE_URL"`).
     pub var_name: &'static str,
 
-    /// Where the value came from
+    /// Where the value originated from.
     pub source: Source,
 }
 
 impl ValueSource {
+    /// Creates a new `ValueSource` with the given variable name and source.
+    ///
+    /// # Arguments
+    ///
+    /// * `var_name` - The environment variable name
+    /// * `source` - Where the value originated from
     pub fn new(var_name: &'static str, source: Source) -> Self {
         Self { var_name, source }
     }
@@ -387,42 +607,111 @@ impl Display for ValueSource {
     }
 }
 
-/// Collection of source attributions for all config fields.
+/// Collection of source attributions for all configuration fields.
+///
+/// This struct tracks where each configuration value originated from,
+/// enabling debugging and auditing of configuration loading. It's returned
+/// by methods like `from_env_with_sources()` and `from_config_with_sources()`.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use procenv::EnvConfig;
+///
+/// #[derive(EnvConfig)]
+/// #[env_config(dotenv)]
+/// struct Config {
+///     #[env(var = "DATABASE_URL")]
+///     db_url: String,
+///
+///     #[env(var = "PORT", default = "8080")]
+///     port: u16,
+/// }
+///
+/// let (config, sources) = Config::from_env_with_sources()?;
+///
+/// // Print all sources
+/// println!("{}", sources);
+///
+/// // Check a specific field
+/// if let Some(source) = sources.get("port") {
+///     match source.source {
+///         Source::Default => println!("Using default port"),
+///         Source::Environment => println!("Port from environment"),
+///         _ => {}
+///     }
+/// }
+///
+/// // Iterate over all sources
+/// for (field, source) in sources.iter() {
+///     println!("{}: {} [{}]", field, source.source, source.var_name);
+/// }
+/// ```
+///
+/// # Display Output
+///
+/// When printed, `ConfigSources` produces a formatted table:
+///
+/// ```text
+/// Configuration Source:
+/// --------------------------------------------------
+///   db_url  <- Environment variable [DATABASE_URL]
+///   port    <- Default value [PORT]
+/// ```
 #[derive(Clone, Debug, Default)]
 pub struct ConfigSources {
     entries: Vec<(String, ValueSource)>,
 }
 
 impl ConfigSources {
-    /// Create a new empty ConfigSources.
+    /// Creates a new empty `ConfigSources` collection.
     pub fn new() -> Self {
         Self {
             entries: Vec::new(),
         }
     }
 
-    /// Add a source entry for a field.
+    /// Adds a source entry for a field.
+    ///
+    /// # Arguments
+    ///
+    /// * `field_name` - The struct field name (e.g., `"db_url"`)
+    /// * `source` - The [`ValueSource`] containing variable name and origin
     pub fn add(&mut self, field_name: impl Into<String>, source: ValueSource) {
         self.entries.push((field_name.into(), source));
     }
 
-    /// Extend with entries from a nested config (with field prefix).
+    /// Extends with entries from a nested configuration struct.
     ///
-    /// Creates dotted paths for nested fields, e.g., `database.port`.
+    /// Creates dotted paths for nested fields. For example, if the prefix
+    /// is `"database"` and the nested config has a field `"port"`, the
+    /// resulting path will be `"database.port"`.
+    ///
+    /// # Arguments
+    ///
+    /// * `prefix` - The parent field name
+    /// * `nested` - Source entries from the nested config
     pub fn extend_nested(&mut self, prefix: &str, nested: ConfigSources) {
         for (field_name, source) in nested.entries {
-            // Create dotted path: "database" + "port" -> "database.port"
             let dotted_path = format!("{}.{}", prefix, field_name);
             self.entries.push((dotted_path, source));
         }
     }
 
-    /// Get all entries as a slice.
+    /// Returns all entries as a slice.
+    ///
+    /// Each entry is a tuple of `(field_name, ValueSource)`.
     pub fn entries(&self) -> &[(String, ValueSource)] {
         &self.entries
     }
 
-    /// Get the source for a specific field.
+    /// Looks up the source for a specific field by name.
+    ///
+    /// Returns `None` if the field is not found.
+    ///
+    /// # Arguments
+    ///
+    /// * `field_name` - The field name to look up (e.g., `"db_url"` or `"database.port"`)
     pub fn get(&self, field_name: &str) -> Option<&ValueSource> {
         self.entries
             .iter()
@@ -431,6 +720,9 @@ impl ConfigSources {
     }
 
     /// Returns an iterator over field names and their sources.
+    ///
+    /// This is useful for iterating through all configuration sources
+    /// without consuming the collection.
     pub fn iter(&self) -> impl Iterator<Item = (&str, &ValueSource)> {
         self.entries
             .iter()

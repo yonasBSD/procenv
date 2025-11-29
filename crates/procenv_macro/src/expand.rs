@@ -1,17 +1,58 @@
 //! Code generation orchestration for EnvConfig derive macro.
 //!
-//! This module is the conductor of the macro - it:
-//! 1. Validates that the input is a struct with named fields
-//! 2. Parses each field into a `FieldGenerator`
-//! 3. Generates the `from_env()` method implementation
-//! 4. Generates a custom `Debug` implementation with secret masking
+//! This module is the conductor of the macro. The [`Expander`] struct
+//! coordinates the code generation process:
 //!
-//! ## Error Accumulation Pattern
+//! 1. **Validation** - Ensures input is a struct with named fields
+//! 2. **Parsing** - Converts each field into a [`FieldGenerator`](crate::field::FieldGenerator)
+//! 3. **Generation** - Produces all impl blocks for the struct
 //!
-//! Instead of failing on the first error, we collect all errors into a
-//! `Vec<Error>` and return them together. This gives users a complete
-//! picture of what's missing or misconfigured, rather than making them
-//! fix one error at a time.
+//! # Generated Code
+//!
+//! The expander generates the following implementations:
+//!
+//! | Method | Generator Function |
+//! |--------|-------------------|
+//! | `from_env()` | [`generate_from_env_impl`](Expander::generate_from_env_impl) |
+//! | `from_env_with_sources()` | [`generate_from_env_with_sources_impl`](Expander::generate_from_env_with_sources_impl) |
+//! | `from_config()` | [`generate_from_config_impl`](Expander::generate_from_config_impl) |
+//! | `from_args()` | [`generate_from_args_impl`](Expander::generate_from_args_impl) |
+//! | `env_example()` | [`generate_env_example_impl`](Expander::generate_env_example_impl) |
+//! | `impl Debug` | [`generate_debug_impl`](Expander::generate_debug_impl) |
+//!
+//! # Error Accumulation Pattern
+//!
+//! The generated `from_env()` method uses error accumulation rather than
+//! failing on the first error. This provides users a complete picture of
+//! all configuration issues at once:
+//!
+//! ```text
+//! ┌─────────────────┐
+//! │  __errors: Vec  │  Accumulator for all errors
+//! └────────┬────────┘
+//!          │
+//!    ┌─────┴─────┬─────────────┬─────────────┐
+//!    ▼           ▼             ▼             ▼
+//! ┌──────┐   ┌──────┐     ┌──────┐     ┌──────┐
+//! │Field1│   │Field2│     │Field3│     │FieldN│  Each field loads
+//! │loader│   │loader│     │loader│     │loader│  independently
+//! └──┬───┘   └──┬───┘     └──┬───┘     └──┬───┘
+//!    │          │            │            │
+//!    └──────────┴────────────┴────────────┘
+//!                      │
+//!                      ▼
+//! ┌─────────────────────────────────────────────┐
+//! │  If __errors.is_empty() → Ok(Self { ... })  │
+//! │  Else → Err(Multiple { errors })            │
+//! └─────────────────────────────────────────────┘
+//! ```
+//!
+//! # Architecture
+//!
+//! The expander works with trait objects (`Box<dyn FieldGenerator>`) to
+//! generate field-specific code polymorphically. This allows the same
+//! expansion logic to handle required, default, optional, and flatten
+//! fields uniformly.
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as QuoteStream;
@@ -28,8 +69,30 @@ use crate::parse::{DotenvConfig, EnvConfigAttr};
 
 /// The main orchestrator for macro expansion.
 ///
-/// This is a zero-sized type that serves as a namespace for the
-/// expansion functions. All methods are associated functions.
+/// `Expander` is a zero-sized type that serves as a namespace for code
+/// generation functions. It coordinates the entire macro expansion process.
+///
+/// # Entry Point
+///
+/// The [`expand`](Self::expand) method is the main entry point, called from
+/// the derive macro's proc_macro function. It:
+///
+/// 1. Parses struct-level attributes (`#[env_config(...)]`)
+/// 2. Validates the input is a named struct
+/// 3. Parses each field's attributes into [`FieldGenerator`](crate::field::FieldGenerator) objects
+/// 4. Generates all implementation blocks
+/// 5. Returns the combined TokenStream
+///
+/// # Generator Methods
+///
+/// Each generator method produces a specific impl block:
+///
+/// - [`generate_from_env_impl`](Self::generate_from_env_impl) - Core environment loading
+/// - [`generate_from_env_with_sources_impl`](Self::generate_from_env_with_sources_impl) - Loading with source attribution
+/// - [`generate_from_config_impl`](Self::generate_from_config_impl) - File-based configuration
+/// - [`generate_from_args_impl`](Self::generate_from_args_impl) - CLI argument parsing
+/// - [`generate_debug_impl`](Self::generate_debug_impl) - Debug with secret masking
+/// - [`generate_env_example_impl`](Self::generate_env_example_impl) - `.env.example` generation
 pub struct Expander;
 
 impl Expander {
