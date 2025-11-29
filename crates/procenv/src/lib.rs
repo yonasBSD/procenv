@@ -583,7 +583,7 @@ impl Display for Source {
 #[derive(Clone, Debug)]
 pub struct ValueSource {
     /// The environment variable name (e.g., `"DATABASE_URL"`).
-    pub var_name: &'static str,
+    pub var_name: String,
 
     /// Where the value originated from.
     pub source: Source,
@@ -594,10 +594,13 @@ impl ValueSource {
     ///
     /// # Arguments
     ///
-    /// * `var_name` - The environment variable name
+    /// * `var_name` - The environment variable name (accepts `&str`, `String`, etc.)
     /// * `source` - Where the value originated from
-    pub fn new(var_name: &'static str, source: Source) -> Self {
-        Self { var_name, source }
+    pub fn new(var_name: impl Into<String>, source: Source) -> Self {
+        Self {
+            var_name: var_name.into(),
+            source,
+        }
     }
 }
 
@@ -788,14 +791,14 @@ mod tests {
 
     #[test]
     fn test_value_source_new() {
-        let vs = ValueSource::new("DATABASE_URL", Source::Environment);
+        let vs = ValueSource::new("DATABASE_URL".to_string(), Source::Environment);
         assert_eq!(vs.var_name, "DATABASE_URL");
         assert_eq!(vs.source, Source::Environment);
     }
 
     #[test]
     fn test_value_source_display() {
-        let vs = ValueSource::new("PORT", Source::Default);
+        let vs = ValueSource::new("PORT".to_string(), Source::Default);
         assert_eq!(vs.to_string(), "PORT: Default value");
     }
 
@@ -810,9 +813,12 @@ mod tests {
         let mut sources = ConfigSources::new();
         sources.add(
             "db_url",
-            ValueSource::new("DATABASE_URL", Source::Environment),
+            ValueSource::new("DATABASE_URL".to_string(), Source::Environment),
         );
-        sources.add("port", ValueSource::new("PORT", Source::Default));
+        sources.add(
+            "port",
+            ValueSource::new("PORT".to_string(), Source::Default),
+        );
 
         assert_eq!(sources.entries().len(), 2);
 
@@ -830,8 +836,14 @@ mod tests {
     #[test]
     fn test_config_sources_iter() {
         let mut sources = ConfigSources::new();
-        sources.add("field1", ValueSource::new("VAR1", Source::Environment));
-        sources.add("field2", ValueSource::new("VAR2", Source::Default));
+        sources.add(
+            "field1",
+            ValueSource::new("VAR1".to_string(), Source::Environment),
+        );
+        sources.add(
+            "field2",
+            ValueSource::new("VAR2".to_string(), Source::Default),
+        );
 
         let entries: Vec<_> = sources.iter().collect();
         assert_eq!(entries.len(), 2);
@@ -842,14 +854,20 @@ mod tests {
     #[test]
     fn test_config_sources_extend_nested() {
         let mut parent = ConfigSources::new();
-        parent.add("name", ValueSource::new("APP_NAME", Source::Environment));
+        parent.add(
+            "name",
+            ValueSource::new("APP_NAME".to_string(), Source::Environment),
+        );
 
         let mut nested = ConfigSources::new();
         nested.add(
             "host",
-            ValueSource::new("DB_HOST", Source::DotenvFile(None)),
+            ValueSource::new("DB_HOST".to_string(), Source::DotenvFile(None)),
         );
-        nested.add("port", ValueSource::new("DB_PORT", Source::Default));
+        nested.add(
+            "port",
+            ValueSource::new("DB_PORT".to_string(), Source::Default),
+        );
 
         parent.extend_nested("database", nested);
 
@@ -862,9 +880,12 @@ mod tests {
         let mut sources = ConfigSources::new();
         sources.add(
             "database_url",
-            ValueSource::new("DATABASE_URL", Source::Environment),
+            ValueSource::new("DATABASE_URL".to_string(), Source::Environment),
         );
-        sources.add("port", ValueSource::new("PORT", Source::Default));
+        sources.add(
+            "port".to_string(),
+            ValueSource::new("PORT".to_string(), Source::Default),
+        );
 
         let display = sources.to_string();
         assert!(display.contains("Configuration Source"));

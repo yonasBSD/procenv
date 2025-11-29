@@ -134,6 +134,10 @@ impl Expander {
         let sources_impl =
             Self::generate_from_env_with_sources_impl(struct_name, &generators, &env_config_attr);
 
+        // Always generate __config_defaults for nested struct support
+        let config_defaults_impl =
+            Self::generate_config_defaults_impl(struct_name, generics, &generators);
+
         // Generate file config method if files are configured
         let file_config_impl = if !env_config_attr.files.is_empty() {
             Self::generate_from_config_impl(struct_name, generics, &generators, &env_config_attr)
@@ -146,6 +150,7 @@ impl Expander {
             #debug_impl
             #env_example_impl
             #sources_impl
+            #config_defaults_impl
             #file_config_impl
         };
 
@@ -616,6 +621,76 @@ impl Expander {
         }
     }
 
+    /// Generate the `__config_defaults()` method for nested struct defaults.
+    ///
+    /// This internal method is used by flatten fields to propagate their
+    /// defaults up to the parent struct's `from_config()` method.
+    fn generate_config_defaults_impl(
+        struct_name: &Ident,
+        generics: &Generics,
+        generators: &[Box<dyn FieldGenerator>],
+    ) -> QuoteStream {
+        let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
+
+        // Generate default entries for regular fields
+        let default_entries: Vec<QuoteStream> = generators
+            .iter()
+            .filter_map(|g| {
+                // Skip flatten fields - handled separately
+                if g.is_flatten() {
+                    return None;
+                }
+
+                let field_name = g.name().to_string();
+                g.default_value().map(|default| {
+                    quote! {
+                        __map.insert(
+                            #field_name.to_string(),
+                            ::procenv::FileUtils::coerce_value(#default)
+                        );
+                    }
+                })
+            })
+            .collect();
+
+        // Generate nested defaults for flatten fields
+        let flatten_entries: Vec<QuoteStream> = generators
+            .iter()
+            .filter_map(|g| {
+                if !g.is_flatten() {
+                    return None;
+                }
+
+                let field_name = g.name().to_string();
+                let ty = g.field_type()?;
+
+                Some(quote! {
+                    if let ::serde_json::Value::Object(nested) = <#ty>::__config_defaults() {
+                        __map.insert(
+                            #field_name.to_string(),
+                            ::serde_json::Value::Object(nested)
+                        );
+                    }
+                })
+            })
+            .collect();
+
+        quote! {
+            impl #impl_generics #struct_name #type_generics #where_clause {
+                /// Returns default values for this config as a JSON object.
+                ///
+                /// This is an internal method used for nested configs.
+                #[doc(hidden)]
+                pub fn __config_defaults() -> ::serde_json::Value {
+                    let mut __map = ::serde_json::Map::new();
+                    #(#default_entries)*
+                    #(#flatten_entries)*
+                    ::serde_json::Value::Object(__map)
+                }
+            }
+        }
+    }
+
     /// Generate the `from_config()` method for file-based configuration loading.
     ///
     /// This generates a method that uses ConfigBuilder to:
@@ -657,6 +732,31 @@ impl Expander {
             quote! {}
         };
 
+        // Generate direct env var mappings for fields with custom var names
+        // This handles fields with `var = "CUSTOM_NAME"` and `no_prefix` attributes
+        let env_mapping_calls: Vec<QuoteStream> = generators
+            .iter()
+            .filter_map(|g| {
+                // Skip flatten fields - they handle their own env vars
+                if g.is_flatten() {
+                    return None;
+                }
+
+                let env_var = g.env_var_name()?;
+                let field_name = g.name().to_string();
+
+                // Generate mapping call for this field
+                Some(quote! {
+                    builder = builder.env_mapping(#field_name, #env_var);
+                })
+            })
+            .collect();
+
+        let env_mappings = quote! {
+            // Register direct env var mappings for fields with custom names
+            #(#env_mapping_calls)*
+        };
+
         // Generate dotenv loading (before ConfigBuilder so env vars are available)
         let dotenv_load = Self::generate_dotenv_load(&env_config_attr.dotenv);
 
@@ -686,6 +786,11 @@ impl Expander {
         let default_entries: Vec<QuoteStream> = generators
             .iter()
             .filter_map(|g| {
+                // Skip flatten fields - handled separately below
+                if g.is_flatten() {
+                    return None;
+                }
+
                 let field_name = g.name().to_string();
                 // Convert field_name to snake_case for JSON key
                 let json_key = field_name.clone();
@@ -702,14 +807,39 @@ impl Expander {
             })
             .collect();
 
-        // Only generate defaults setup if there are any defaults
-        let defaults_setup = if default_entries.is_empty() {
+        // Generate nested defaults collection for flatten fields
+        let flatten_default_entries: Vec<QuoteStream> = generators
+            .iter()
+            .filter_map(|g| {
+                if !g.is_flatten() {
+                    return None;
+                }
+
+                let field_name = g.name().to_string();
+                let ty = g.field_type()?;
+
+                // Merge nested type's defaults under this field's name
+                Some(quote! {
+                    if let ::serde_json::Value::Object(nested_map) = <#ty>::__config_defaults() {
+                        __defaults.insert(
+                            #field_name.to_string(),
+                            ::serde_json::Value::Object(nested_map)
+                        );
+                    }
+                })
+            })
+            .collect();
+
+        // Determine if we need defaults setup
+        let has_flatten = generators.iter().any(|g| g.is_flatten());
+        let defaults_setup = if default_entries.is_empty() && !has_flatten {
             quote! {}
         } else {
             quote! {
                 // Build defaults from #[env(default = "...")] attributes
                 let mut __defaults = ::serde_json::Map::new();
                 #(#default_entries)*
+                #(#flatten_default_entries)*
                 builder = builder.defaults_value(::serde_json::Value::Object(__defaults));
             }
         };
@@ -821,6 +951,9 @@ impl Expander {
                     // Set env prefix for env var overlay
                     #env_prefix
 
+                    // Register direct env var mappings (for custom var names/no_prefix)
+                    #env_mappings
+
                     // Build and deserialize
                     builder.build()
                 }
@@ -862,6 +995,9 @@ impl Expander {
 
                     // Set env prefix for env var overlay
                     #env_prefix
+
+                    // Register direct env var mappings (for custom var names/no_prefix)
+                    #env_mappings
 
                     // Build and deserialize with origin tracking
                     let (__config, __origins) = builder.build_with_origins()?;
@@ -1007,25 +1143,48 @@ impl Expander {
 
         // Check if this field has CLI config
         if field.cli_config().is_some() {
-            let env_loader = field.generate_loader();
+            // Use format-aware env loader if format is specified
+            let env_loader = if let Some(format) = field.format_config() {
+                field.generate_format_loader(format)
+            } else {
+                field.generate_loader()
+            };
 
             // For CLI-enabled fields: check CLI first, then env
             let cli_arg_name = format!("--{}", field.cli_config().unwrap().long.as_ref().unwrap());
             let type_name = field.type_name();
+            let secret = field.is_secret();
+
+            // Generate the parse expression based on format
+            let (parse_expr, format_name) = if let Some(format) = field.format_config() {
+                let expr = match format {
+                    "json" => quote! { ::serde_json::from_str(cli_val) },
+                    "toml" => quote! { ::toml::from_str(cli_val) },
+                    "yaml" => quote! { ::serde_saphyr::from_str(cli_val) },
+                    _ => quote! { cli_val.parse() },
+                };
+                (expr, format.to_uppercase())
+            } else {
+                (quote! { cli_val.parse() }, type_name.clone())
+            };
 
             quote! {
                 let #from_cli_var: bool;
                 let #name = if let std::option::Option::Some(ref cli_val) = #cli_var {
                     #from_cli_var = true;
-                    // Parse CLI value
-                    match cli_val.parse() {
+                    // Parse CLI value (using format-aware parsing if configured)
+                    match #parse_expr {
                         std::result::Result::Ok(v) => std::option::Option::Some(v),
                         std::result::Result::Err(e) => {
                             __errors.push(::procenv::Error::parse(
                                 #cli_arg_name,
-                                cli_val.clone(),
-                                false,
-                                #type_name,
+                                if #secret {
+                                    "[REDACTED]".to_string()
+                                } else {
+                                    cli_val.clone()
+                                },
+                                #secret,
+                                #format_name,
                                 std::boxed::Box::new(e),
                             ));
                             std::option::Option::None
@@ -1039,8 +1198,12 @@ impl Expander {
                 };
             }
         } else {
-            // Non-CLI fields: just use normal env loader
-            field.generate_loader()
+            // Non-CLI fields: use format-aware loader if format is specified
+            if let Some(format) = field.format_config() {
+                field.generate_format_loader(format)
+            } else {
+                field.generate_loader()
+            }
         }
     }
 

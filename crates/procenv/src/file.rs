@@ -545,6 +545,8 @@ pub struct ConfigBuilder {
     env_prefix: Option<String>,
     env_separator: String,
     origins: OriginTracker,
+    /// Direct field-to-env-var mappings for custom var names (field_path, env_var)
+    env_mappings: Vec<(String, String)>,
 }
 
 impl Default for ConfigBuilder {
@@ -562,6 +564,7 @@ impl ConfigBuilder {
             env_prefix: None,
             env_separator: "_".to_string(),
             origins: OriginTracker::new(),
+            env_mappings: Vec::new(),
         }
     }
 
@@ -685,6 +688,36 @@ impl ConfigBuilder {
         self
     }
 
+    /// Register a direct mapping from a field path to an environment variable.
+    ///
+    /// This allows overriding specific fields with custom environment variables
+    /// that don't follow the prefix/separator convention. These mappings have
+    /// the highest priority and are applied after all other env var processing.
+    ///
+    /// # Arguments
+    ///
+    /// * `field_path` - The JSON path to the field (e.g., "database_url" or "database.port")
+    /// * `env_var` - The environment variable name to read
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let config: MyConfig = ConfigBuilder::new()
+    ///     .file("config.toml")
+    ///     .env_prefix("APP_")
+    ///     .env_mapping("database_url", "DATABASE_URL")  // Custom var name
+    ///     .env_mapping("api_key", "SECRET_API_KEY")     // Different naming
+    ///     .build()?;
+    /// ```
+    pub fn env_mapping(
+        mut self,
+        field_path: impl Into<String>,
+        env_var: impl Into<String>,
+    ) -> Self {
+        self.env_mappings.push((field_path.into(), env_var.into()));
+        self
+    }
+
     /// Merges all configuration sources and returns the raw JSON value.
     ///
     /// This is a lower-level method that returns the merged JSON value
@@ -715,7 +748,7 @@ impl ConfigBuilder {
             }
         }
 
-        // Layer environment variables
+        // Layer environment variables using prefix/separator convention
         if let Some(prefix) = &self.env_prefix {
             let env_value = FileUtils::env_to_value(prefix, &self.env_separator);
 
@@ -723,6 +756,19 @@ impl ConfigBuilder {
                 && !map.is_empty()
             {
                 FileUtils::deep_merge(&mut self.base, env_value);
+            }
+        }
+
+        // Layer direct env mappings (highest priority for env overrides)
+        // These handle custom var names and no_prefix fields
+        for (field_path, env_var) in &self.env_mappings {
+            if let Ok(value) = std::env::var(env_var) {
+                let typed_value = FileUtils::coerce_value(&value);
+                let parts: Vec<&str> = field_path.split('.').collect();
+
+                if let SJSON::Value::Object(ref mut map) = self.base {
+                    FileUtils::insert_nested(map, &parts, typed_value);
+                }
             }
         }
 
@@ -1346,7 +1392,9 @@ impl FileUtils {
     }
 
     /// Insert a value into a nested map structure.
-    fn insert_nested(
+    ///
+    /// Used for building nested JSON objects from flat key paths like "database.host".
+    pub fn insert_nested(
         map: &mut SJSON::Map<String, SJSON::Value>,
         parts: &[&str],
         value: SJSON::Value,

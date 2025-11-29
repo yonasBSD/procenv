@@ -296,6 +296,13 @@ pub trait FieldGenerator {
         None
     }
 
+    /// Returns the field's type for flatten fields.
+    ///
+    /// Used to generate calls to nested types' methods (e.g., `__config_defaults()`).
+    fn field_type(&self) -> Option<&Type> {
+        None
+    }
+
     /// Generate clap Arg definition for this field (if CLI-enabled).
     fn generate_clap_arg(&self) -> Option<QuoteStream> {
         let cli = self.cli_config()?;
@@ -1342,6 +1349,10 @@ impl FieldGenerator for FlattenField {
 
     fn is_flatten(&self) -> bool {
         true
+    }
+
+    fn field_type(&self) -> Option<&Type> {
+        Some(&self.ty)
     }
 
     fn generate_source_tracking(&self) -> QuoteStream {

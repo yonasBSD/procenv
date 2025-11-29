@@ -413,6 +413,10 @@ All correctness issues have been resolved:
 - ✅ Nested field attribution (flattened fields individually attributed)
 - ✅ Dotenv provenance tracking (`.env` vs OS environment distinguished)
 - ✅ CLI/nested config source fidelity
+- ✅ Flatten + file attribution compiles and works correctly
+- ✅ Nested defaults propagate through `from_config*` methods
+- ✅ CLI honors `format = "json/toml/yaml"` attribute
+- ✅ File env overlay respects per-field var names via `env_mapping()`
 
 See [PROGRESS.md](PROGRESS.md) for the full roadmap.
 
