@@ -1401,8 +1401,8 @@ pub enum SecretKind {
     /// `SecretString` (alias for `SecretBox<str>`)
     String,
 
-    /// `SecretBox<T>` with the inner type
-    Box(Type),
+    /// `SecretBox<T>` with the inner type (boxed to reduce enum size)
+    Box(Box<Type>),
 }
 
 impl FieldFactory {
@@ -1455,7 +1455,7 @@ impl FieldFactory {
 
                 SecretKind::Box(inner_type) => Ok(Box::new(SecretBoxField {
                     name,
-                    inner_type,
+                    inner_type: *inner_type,
                     env_var,
                     doc,
                 })),
@@ -1536,7 +1536,7 @@ impl FieldFactory {
                 return None;
             };
 
-            return Some(SecretKind::Box(inner.clone()));
+            return Some(SecretKind::Box(Box::new(inner.clone())));
         }
 
         None

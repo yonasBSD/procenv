@@ -9,7 +9,7 @@ pub use secrecy::{ExposeSecret, ExposeSecretMut, SecretBox, SecretString};
 #[cfg(feature = "file")]
 pub mod file;
 #[cfg(feature = "file")]
-pub use file::{ConfigBuilder, FileFormat};
+pub use file::{ConfigBuilder, FileFormat, FileUtils};
 
 use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;

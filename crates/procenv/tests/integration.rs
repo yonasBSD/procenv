@@ -770,3 +770,124 @@ mod serde_format_tests {
         }
     }
 }
+
+// ============================================================================
+// from_config() Defaults Tests (Phase A.0 - from_config semantic parity)
+// ============================================================================
+
+mod from_config_tests {
+    use procenv::EnvConfig;
+    use serde::Deserialize;
+    use serial_test::serial;
+    use std::fs;
+
+    #[derive(EnvConfig, Deserialize)]
+    #[env_config(prefix = "FCONFIG_", file_optional = "/tmp/procenv_test_config.json")]
+    struct FromConfigTest {
+        /// Name field - required, must come from file or env
+        #[env(var = "NAME")]
+        name: String,
+
+        /// Port with macro-level default
+        #[env(var = "PORT", default = "8080")]
+        port: u16,
+
+        /// Debug with macro-level default
+        #[env(var = "DEBUG", default = "false")]
+        debug: bool,
+    }
+
+    fn cleanup_test_file() {
+        let _ = fs::remove_file("/tmp/procenv_test_config.json");
+    }
+
+    fn cleanup_env() {
+        unsafe {
+            std::env::remove_var("FCONFIG_NAME");
+            std::env::remove_var("FCONFIG_PORT");
+            std::env::remove_var("FCONFIG_DEBUG");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_from_config_honors_macro_defaults() {
+        cleanup_test_file();
+        cleanup_env();
+
+        // Create minimal config file with only required field
+        let config_content = r#"{"name": "test-app"}"#;
+        fs::write("/tmp/procenv_test_config.json", config_content).unwrap();
+
+        let config = FromConfigTest::from_config().expect("should load with defaults");
+
+        assert_eq!(config.name, "test-app");
+        assert_eq!(config.port, 8080, "port should use macro default");
+        assert!(!config.debug, "debug should use macro default");
+
+        cleanup_test_file();
+    }
+
+    #[test]
+    #[serial]
+    fn test_from_config_file_overrides_defaults() {
+        cleanup_test_file();
+        cleanup_env();
+
+        // Config file overrides defaults
+        let config_content = r#"{"name": "my-app", "port": 3000, "debug": true}"#;
+        fs::write("/tmp/procenv_test_config.json", config_content).unwrap();
+
+        let config = FromConfigTest::from_config().expect("should load from file");
+
+        assert_eq!(config.name, "my-app");
+        assert_eq!(config.port, 3000, "port should come from file");
+        assert!(config.debug, "debug should come from file");
+
+        cleanup_test_file();
+    }
+
+    #[test]
+    #[serial]
+    fn test_from_config_env_overrides_file() {
+        cleanup_test_file();
+        cleanup_env();
+
+        // Config file has values
+        let config_content = r#"{"name": "file-app", "port": 3000}"#;
+        fs::write("/tmp/procenv_test_config.json", config_content).unwrap();
+
+        // Env var should override file
+        unsafe {
+            std::env::set_var("FCONFIG_PORT", "9000");
+        }
+
+        let config = FromConfigTest::from_config().expect("should load with env override");
+
+        assert_eq!(config.name, "file-app", "name should come from file");
+        assert_eq!(config.port, 9000, "port should be overridden by env");
+
+        cleanup_test_file();
+        cleanup_env();
+    }
+
+    #[test]
+    #[serial]
+    fn test_from_config_defaults_only_no_file() {
+        cleanup_test_file();
+        cleanup_env();
+
+        // No file exists, but we have env var for required field
+        unsafe {
+            std::env::set_var("FCONFIG_NAME", "env-app");
+        }
+
+        let config = FromConfigTest::from_config().expect("should load from env with defaults");
+
+        assert_eq!(config.name, "env-app", "name should come from env");
+        assert_eq!(config.port, 8080, "port should use macro default");
+        assert!(!config.debug, "debug should use macro default");
+
+        cleanup_env();
+    }
+}

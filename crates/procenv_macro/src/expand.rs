@@ -73,7 +73,7 @@ impl Expander {
 
         // Generate file config method if files are configured
         let file_config_impl = if !env_config_attr.files.is_empty() {
-            Self::generate_from_config_impl(struct_name, generics, &env_config_attr)
+            Self::generate_from_config_impl(struct_name, generics, &generators, &env_config_attr)
         } else {
             quote! {}
         };
@@ -159,10 +159,8 @@ impl Expander {
 
         // Generate assignment code for each field
         // This creates the struct initialization: `field: field.unwrap()`
-        let assignments: Vec<QuoteStream> = fields
-            .iter()
-            .map(|f: &Box<dyn FieldGenerator + 'static>| f.generate_assignment())
-            .collect();
+        let assignments: Vec<QuoteStream> =
+            fields.iter().map(|f| f.generate_assignment()).collect();
 
         // Generate dotenv loading code (if configured)
         let dotenv_load = Self::generate_dotenv_load(&env_config_attr.dotenv);
@@ -566,6 +564,7 @@ impl Expander {
     fn generate_from_config_impl(
         struct_name: &Ident,
         generics: &Generics,
+        generators: &[Box<dyn FieldGenerator>],
         env_config_attr: &EnvConfigAttr,
     ) -> QuoteStream {
         let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
@@ -598,6 +597,39 @@ impl Expander {
         // Generate dotenv loading (before ConfigBuilder so env vars are available)
         let dotenv_load = Self::generate_dotenv_load(&env_config_attr.dotenv);
 
+        // Generate default values for fields that have them
+        // This ensures #[env(default = "...")] works with from_config()
+        let default_entries: Vec<QuoteStream> = generators
+            .iter()
+            .filter_map(|g| {
+                let field_name = g.name().to_string();
+                // Convert field_name to snake_case for JSON key
+                let json_key = field_name.clone();
+
+                // Use FileUtils::coerce_value to convert string to proper JSON type
+                g.default_value().map(|default| {
+                    quote! {
+                        __defaults.insert(
+                            #json_key.to_string(),
+                            ::procenv::FileUtils::coerce_value(#default)
+                        );
+                    }
+                })
+            })
+            .collect();
+
+        // Only generate defaults setup if there are any defaults
+        let defaults_setup = if default_entries.is_empty() {
+            quote! {}
+        } else {
+            quote! {
+                // Build defaults from #[env(default = "...")] attributes
+                let mut __defaults = ::serde_json::Map::new();
+                #(#default_entries)*
+                builder = builder.defaults_value(::serde_json::Value::Object(__defaults));
+            }
+        };
+
         quote! {
             impl #impl_generics #struct_name #type_generics #where_clause
             where
@@ -606,8 +638,9 @@ impl Expander {
                 /// Load configuration from files and environment variables.
                 ///
                 /// This method loads configuration using the layered approach:
-                /// 1. Config files (in order specified, later files override)
-                /// 2. Environment variables (highest priority)
+                /// 1. Macro defaults (from `#[env(default = "...")]`)
+                /// 2. Config files (in order specified, later files override)
+                /// 3. Environment variables (highest priority)
                 ///
                 /// # Errors
                 ///
@@ -626,6 +659,9 @@ impl Expander {
                     #dotenv_load
 
                     let mut builder = ::procenv::ConfigBuilder::new();
+
+                    // Apply macro-level defaults
+                    #defaults_setup
 
                     // Add config files
                     #(#file_loads)*
@@ -878,22 +914,18 @@ impl Expander {
         // Generate loaders (using format-aware loader for fields with format)
         let loaders: Vec<QuoteStream> = generators
             .iter()
-            .map(|g: &Box<dyn FieldGenerator + 'static>| {
-                Self::generate_field_loader(g.as_ref(), env_config)
-            })
+            .map(|g| Self::generate_field_loader(g.as_ref(), env_config))
             .collect();
 
         // Generate source tracking
         let source_tracking: Vec<QuoteStream> = generators
             .iter()
-            .map(|g: &Box<dyn FieldGenerator + 'static>| g.generate_source_tracking())
+            .map(|g| g.generate_source_tracking())
             .collect();
 
         // Generate assignments
-        let assignments: Vec<QuoteStream> = generators
-            .iter()
-            .map(|g: &Box<dyn FieldGenerator + 'static>| g.generate_assignment())
-            .collect();
+        let assignments: Vec<QuoteStream> =
+            generators.iter().map(|g| g.generate_assignment()).collect();
 
         // Check if any fields have CLI config
         let has_cli_fields = generators.iter().any(|g| g.cli_config().is_some());

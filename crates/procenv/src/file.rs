@@ -17,13 +17,16 @@
 //! 3. `.env` file (if `dotenv` feature enabled)
 //! 4. Environment variables (highest priority)
 
+// FileError is intentionally large to provide rich miette diagnostics with source spans
+#![allow(clippy::result_large_err)]
+
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
 };
 
 use miette::{Diagnostic, NamedSource, SourceSpan};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json as SJSON;
 
 #[cfg(feature = "yaml")]
@@ -392,10 +395,10 @@ impl ConfigBuilder {
         if let Some(prefix) = &self.env_prefix {
             let env_value = FileUtils::env_to_value(prefix, &self.env_separator);
 
-            if let SJSON::Value::Object(map) = &env_value {
-                if !map.is_empty() {
-                    FileUtils::deep_merge(&mut self.base, env_value);
-                }
+            if let SJSON::Value::Object(map) = &env_value
+                && !map.is_empty()
+            {
+                FileUtils::deep_merge(&mut self.base, env_value);
             }
         }
 
@@ -841,12 +844,11 @@ impl FileUtils {
             return SJSON::Value::Number(i.into());
         }
 
-        if s.contains('.') {
-            if let Ok(f) = s.parse::<f64>() {
-                if let Some(n) = SJSON::Number::from_f64(f) {
-                    return SJSON::Value::Number(n);
-                }
-            }
+        if s.contains('.')
+            && let Ok(f) = s.parse::<f64>()
+            && let Some(n) = SJSON::Number::from_f64(f)
+        {
+            return SJSON::Value::Number(n);
         }
 
         SJSON::Value::String(s.to_string())

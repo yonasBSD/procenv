@@ -341,9 +341,19 @@ procenv/
 
 ## Development Status
 
-**Current Phase:** A.0 - Correctness Sprint
+**Phase A.0 (Correctness Sprint): COMPLETE** ✅
 
-See [PROGRESS.md](PROGRESS.md) for the full roadmap and known issues.
+All correctness issues have been resolved:
+- ✅ Error accumulation with miette diagnostics
+- ✅ Source attribution (env, file, profile, default, CLI)
+- ✅ Profile support with correct source tracking
+- ✅ File configs with type mismatch spans
+- ✅ `from_config()` honors macro-level defaults
+- ✅ CLI parse errors show target types
+
+**Next:** Phase A - Production Ready (documentation, test coverage)
+
+See [PROGRESS.md](PROGRESS.md) for the full roadmap.
 
 ## AI-Assisted Development
 

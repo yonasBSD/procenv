@@ -51,14 +51,13 @@ pub fn extract_doc_comment(field: &Field) -> Option<String> {
             }
 
             // Parse #[doc = "..."]
-            if let Meta::NameValue(meta) = &attr.meta {
-                if let Expr::Lit(ExprLit {
+            if let Meta::NameValue(meta) = &attr.meta
+                && let Expr::Lit(ExprLit {
                     lit: Lit::Str(lit_str),
                     ..
                 }) = &meta.value
-                {
-                    return Some(lit_str.value().trim().to_string());
-                }
+            {
+                return Some(lit_str.value().trim().to_string());
             }
 
             None
