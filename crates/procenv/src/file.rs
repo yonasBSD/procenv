@@ -23,9 +23,13 @@ use std::{
 };
 
 use miette::{Diagnostic, NamedSource, SourceSpan};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Serialize};
 use serde_json as SJSON;
+
+#[cfg(feature = "yaml")]
 use serde_saphyr as YAML;
+
+#[cfg(feature = "toml")]
 use toml as TOML;
 
 use crate::Error;

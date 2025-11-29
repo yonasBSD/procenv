@@ -50,8 +50,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
-      # Run tests serially to avoid env var race conditions
-      - run: cargo test --workspace --all-features -- --test-threads=1
+      - run: cargo test --workspace --all-features
 
   test-features:
     name: Test Features
@@ -75,13 +74,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
-      # Run tests serially to avoid env var race conditions
       - name: Test with features
         run: |
           if [ -z "${{ matrix.features }}" ]; then
-            cargo test -p procenv -- --test-threads=1
+            cargo test -p procenv
           else
-            cargo test -p procenv --features "${{ matrix.features }}" -- --test-threads=1
+            cargo test -p procenv --features "${{ matrix.features }}"
           fi
 
   doc:

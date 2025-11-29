@@ -390,7 +390,7 @@ impl Display for ValueSource {
 /// Collection of source attributions for all config fields.
 #[derive(Clone, Debug, Default)]
 pub struct ConfigSources {
-    entries: Vec<(&'static str, ValueSource)>,
+    entries: Vec<(String, ValueSource)>,
 }
 
 impl ConfigSources {
@@ -402,29 +402,23 @@ impl ConfigSources {
     }
 
     /// Add a source entry for a field.
-    pub fn add(&mut self, field_name: &'static str, source: ValueSource) {
-        self.entries.push((field_name, source));
+    pub fn add(&mut self, field_name: impl Into<String>, source: ValueSource) {
+        self.entries.push((field_name.into(), source));
     }
 
     /// Extend with entries from a nested config (with field prefix).
-    pub fn extend_nested(&mut self, prefix: &'static str, nested: ConfigSources) {
+    ///
+    /// Creates dotted paths for nested fields, e.g., `database.port`.
+    pub fn extend_nested(&mut self, prefix: &str, nested: ConfigSources) {
         for (field_name, source) in nested.entries {
-            // Store with dotted path for nested fields
-            self.entries.push((
-                field_name,
-                ValueSource {
-                    var_name: source.var_name,
-                    source: source.source,
-                },
-            ));
+            // Create dotted path: "database" + "port" -> "database.port"
+            let dotted_path = format!("{}.{}", prefix, field_name);
+            self.entries.push((dotted_path, source));
         }
-
-        // Add a marker for the nested struct itself
-        let _ = prefix; // Used conceptually for grouping
     }
 
     /// Get all entries as a slice.
-    pub fn entries(&self) -> &[(&'static str, ValueSource)] {
+    pub fn entries(&self) -> &[(String, ValueSource)] {
         &self.entries
     }
 
@@ -432,17 +426,15 @@ impl ConfigSources {
     pub fn get(&self, field_name: &str) -> Option<&ValueSource> {
         self.entries
             .iter()
-            .find(|(name, _)| *name == field_name)
+            .find(|(name, _)| name == field_name)
             .map(|(_, source)| source)
     }
 
     /// Returns an iterator over field names and their sources.
-    pub fn iter(&self) -> impl Iterator<Item = (&'static str, &ValueSource)> {
-        self.entries.iter().map(
-            |(name, source): &(&'static str, ValueSource)| -> (&str, &ValueSource) {
-                (*name, source)
-            },
-        )
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &ValueSource)> {
+        self.entries
+            .iter()
+            .map(|(name, source)| (name.as_str(), source))
     }
 
     pub fn check_env_source(var_name: &str, dotenv_loaded: bool) -> Source {

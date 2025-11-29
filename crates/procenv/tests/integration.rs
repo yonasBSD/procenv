@@ -660,6 +660,7 @@ fn test_file_config_priority_order() {
 mod serde_format_tests {
     use procenv::EnvConfig;
     use serde::Deserialize;
+    use serial_test::serial;
 
     #[derive(Debug, Deserialize, PartialEq)]
     struct Tags {
@@ -683,6 +684,7 @@ mod serde_format_tests {
     }
 
     #[test]
+    #[serial]
     fn test_format_optional_missing_returns_none() {
         // SAFETY: Test is single-threaded, env manipulation is isolated
         unsafe {
@@ -704,6 +706,7 @@ mod serde_format_tests {
     }
 
     #[test]
+    #[serial]
     fn test_format_default_used_when_missing() {
         unsafe {
             std::env::set_var("TEST_REQUIRED_JSON", r#"{"values":["req"]}"#);
@@ -724,6 +727,7 @@ mod serde_format_tests {
     }
 
     #[test]
+    #[serial]
     fn test_format_optional_set_returns_some() {
         unsafe {
             std::env::set_var("TEST_REQUIRED_JSON", r#"{"values":["req"]}"#);
@@ -745,6 +749,7 @@ mod serde_format_tests {
     }
 
     #[test]
+    #[serial]
     fn test_format_default_overridden_by_env() {
         unsafe {
             std::env::set_var("TEST_REQUIRED_JSON", r#"{"values":["req"]}"#);

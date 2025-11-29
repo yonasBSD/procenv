@@ -125,6 +125,11 @@ pub trait FieldGenerator {
     /// Used by the expander for generating Debug impl and error messages.
     fn name(&self) -> &Ident;
 
+    /// Returns the field's type as a string for error messages.
+    ///
+    /// Used for CLI parse errors to show "expected u16" instead of "expected ParseIntError".
+    fn type_name(&self) -> String;
+
     /// Whether this field is marked as secret.
     ///
     /// Secret fields are masked in Debug output ("***") and error messages
@@ -189,6 +194,13 @@ pub trait FieldGenerator {
 
     /// Returns profile configuration if this field has profile-specific defaults.
     fn profile_config(&self) -> Option<&ProfileAttr> {
+        None
+    }
+
+    /// Returns the default value if this field has one.
+    ///
+    /// Used by profile loader to fall back to default when profile doesn't match.
+    fn default_value(&self) -> Option<&str> {
         None
     }
 
@@ -342,6 +354,11 @@ impl FieldGenerator for RequiredField {
 
     fn name(&self) -> &Ident {
         &self.name
+    }
+
+    fn type_name(&self) -> String {
+        let ty = &self.ty;
+        quote!(#ty).to_string().replace(' ', "")
     }
 
     fn is_secret(&self) -> bool {
@@ -572,11 +589,6 @@ impl FieldGenerator for DefaultField {
                         #default.to_string()
                     },
 
-                    std::result::Result::Err(std::env::VarError::NotPresent) => {
-                        #used_default_ident = true;
-                        #default.to_string()
-                    },
-
                     std::result::Result::Err(std::env::VarError::NotUnicode(_)) => {
                         __errors.push(::procenv::Error::InvalidUtf8 {
                             var: #env_var,
@@ -617,6 +629,11 @@ impl FieldGenerator for DefaultField {
 
     fn name(&self) -> &Ident {
         &self.name
+    }
+
+    fn type_name(&self) -> String {
+        let ty = &self.ty;
+        quote!(#ty).to_string().replace(' ', "")
     }
 
     fn is_secret(&self) -> bool {
@@ -756,6 +773,10 @@ impl FieldGenerator for DefaultField {
         self.profile.as_ref()
     }
 
+    fn default_value(&self) -> Option<&str> {
+        Some(&self.default)
+    }
+
     fn format_config(&self) -> Option<&str> {
         self.format.as_deref()
     }
@@ -854,6 +875,11 @@ impl FieldGenerator for OptionalField {
 
     fn name(&self) -> &Ident {
         &self.name
+    }
+
+    fn type_name(&self) -> String {
+        let inner = &self.inner_type;
+        quote!(#inner).to_string().replace(' ', "")
     }
 
     fn is_secret(&self) -> bool {
@@ -1056,6 +1082,10 @@ impl FieldGenerator for SecretStringField {
         &self.name
     }
 
+    fn type_name(&self) -> String {
+        "SecretString".to_string()
+    }
+
     fn is_secret(&self) -> bool {
         true
     }
@@ -1198,6 +1228,11 @@ impl FieldGenerator for FlattenField {
         &self.name
     }
 
+    fn type_name(&self) -> String {
+        let ty = &self.ty;
+        quote!(#ty).to_string().replace(' ', "")
+    }
+
     fn is_secret(&self) -> bool {
         false // The nested struct has its own Debug impl
     }
@@ -1299,6 +1334,11 @@ impl FieldGenerator for SecretBoxField {
 
     fn name(&self) -> &Ident {
         &self.name
+    }
+
+    fn type_name(&self) -> String {
+        let inner = &self.inner_type;
+        quote!(#inner).to_string().replace(' ', "")
     }
 
     fn is_secret(&self) -> bool {

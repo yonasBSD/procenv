@@ -290,39 +290,95 @@ impl Expander {
             })
             .collect();
 
-        // Get env var name for checking env override
+        // Get env var name and type info for parsing
         let env_var = field.env_var_name().unwrap_or("");
+        let ty = field.type_name();
+        let secret = field.is_secret();
+        let default_value = field.default_value();
+        let used_default_ident = format_ident!("__{}_used_default", name);
+
+        // Generate fallback code for when no env var and no profile match
+        let no_value_handling = if let Some(default) = default_value {
+            // Field has a default - use it
+            quote! {
+                #used_default_ident = true;
+                (std::option::Option::Some(#default.to_string()), false)
+            }
+        } else {
+            // Required field with no default - will error later
+            quote! {
+                (std::option::Option::None, false)
+            }
+        };
+
+        // Generate error or None handling for missing value
+        let missing_value_handling = if default_value.is_some() {
+            // DefaultField: already handled by fallback, shouldn't reach here
+            quote! { std::option::Option::None }
+        } else {
+            // RequiredField: error on missing
+            quote! {
+                __errors.push(::procenv::Error::missing(#env_var));
+                std::option::Option::None
+            }
+        };
 
         quote! {
+            // Track if we used the compile-time default (for source attribution)
+            let mut #used_default_ident = false;
+
             // Determine profile default value (if profile matches)
             let __profile_default: std::option::Option<&str> = match __profile.as_deref() {
                 #(#match_arms)*
                 _ => std::option::Option::None,
             };
 
-            // Check if env var is explicitly set (takes priority over profile)
-            let __env_explicitly_set = std::env::var(#env_var).is_ok();
-            let #profile_used_ident = __profile_default.is_some() && !__env_explicitly_set;
+            // Get value to parse: env var > profile > default
+            let (__value_to_parse, #profile_used_ident): (std::option::Option<std::string::String>, bool) =
+                match std::env::var(#env_var) {
+                    std::result::Result::Ok(val) => {
+                        // Env var is set - use it (profile NOT used)
+                        (std::option::Option::Some(val), false)
+                    }
+                    std::result::Result::Err(std::env::VarError::NotPresent) => {
+                        // Env var not set - try profile default
+                        match __profile_default {
+                            std::option::Option::Some(profile_val) => {
+                                (std::option::Option::Some(profile_val.to_string()), true)
+                            }
+                            std::option::Option::None => {
+                                // No profile match - fall back to compile-time default or error
+                                #no_value_handling
+                            }
+                        }
+                    }
+                    std::result::Result::Err(std::env::VarError::NotUnicode(_)) => {
+                        __errors.push(::procenv::Error::InvalidUtf8 { var: #env_var });
+                        (std::option::Option::None, false)
+                    }
+                };
 
-            // If profile provides a value and env is not set, temporarily set the env var
-            // so the standard loader can use it
-            if let (std::option::Option::Some(profile_val), false) = (__profile_default, __env_explicitly_set) {
-                // SAFETY: We're in single-threaded config loading context
-                unsafe {
-                    std::env::set_var(#env_var, profile_val);
+            // Parse the value (from env, profile, or default)
+            let #name = match __value_to_parse {
+                std::option::Option::Some(val) => {
+                    match val.parse() {
+                        std::result::Result::Ok(v) => std::option::Option::Some(v),
+                        std::result::Result::Err(e) => {
+                            __errors.push(::procenv::Error::parse(
+                                #env_var,
+                                if #secret { "[REDACTED]".to_string() } else { val },
+                                #secret,
+                                #ty,
+                                std::boxed::Box::new(e),
+                            ));
+                            std::option::Option::None
+                        }
+                    }
                 }
-            }
-
-            // Run the appropriate loader (format-aware or standard)
-            #base_loader
-
-            // Clean up: remove the temporarily set env var if we set it from profile
-            if #profile_used_ident {
-                // SAFETY: We're in single-threaded config loading context
-                unsafe {
-                    std::env::remove_var(#env_var);
+                std::option::Option::None => {
+                    #missing_value_handling
                 }
-            }
+            };
         }
     }
 
@@ -719,6 +775,7 @@ impl Expander {
 
             // For CLI-enabled fields: check CLI first, then env
             let cli_arg_name = format!("--{}", field.cli_config().unwrap().long.as_ref().unwrap());
+            let type_name = field.type_name();
 
             quote! {
                 let #from_cli_var: bool;
@@ -732,7 +789,7 @@ impl Expander {
                                 #cli_arg_name,
                                 cli_val.clone(),
                                 false,
-                                std::any::type_name_of_val(&e),
+                                #type_name,
                                 std::boxed::Box::new(e),
                             ));
                             std::option::Option::None
