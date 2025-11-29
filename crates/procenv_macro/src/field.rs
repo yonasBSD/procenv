@@ -368,26 +368,63 @@ impl FieldGenerator for RequiredField {
         // Source tracking identifier
         let source_ident = format_ident!("__{}_source", field_name);
 
-        quote! {
-            let #source_ident = if #field_name.is_some() {
-                ::procenv::ValueSource::new(
-                    #env_var,
-                    if __dotenv_loaded {
-                        // Check if var existed before dotenv
-                        if __pre_dotenv_vars.contains(#env_var) {
-                            ::procenv::Source::Environment
-                        } else {
-                            ::procenv::Source::DotenvFile(None)
-                        }
-                    } else {
-                        ::procenv::Source::Environment
-                    }
-                )
-            } else {
-                ::procenv::ValueSource::new(#env_var, ::procenv::Source::NotSet)
-            };
+        // Check if this field has profile config - if so, check profile flag first
+        if self.profile.is_some() {
+            let profile_used_ident = format_ident!("__{}_from_profile", field_name);
 
-            __sources.add(#field_name_str, #source_ident);
+            quote! {
+                let #source_ident = if #profile_used_ident {
+                    // Value came from profile - use the profile name
+                    ::procenv::ValueSource::new(
+                        #env_var,
+                        ::procenv::Source::Profile(__profile.clone().unwrap_or_default())
+                    )
+                } else if #field_name.is_some() {
+                    ::procenv::ValueSource::new(
+                        #env_var,
+                        if __dotenv_loaded {
+                            // Check if var existed before dotenv
+                            if __pre_dotenv_vars.contains(#env_var) {
+                                ::procenv::Source::Environment
+                            } else {
+                                ::procenv::Source::DotenvFile(None)
+                            }
+                        } else {
+                            ::procenv::Source::Environment
+                        }
+                    )
+                } else {
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::NotSet)
+                };
+
+                __sources.add(#field_name_str, #source_ident);
+            }
+        } else {
+            // No profile config - use original logic
+            quote! {
+                let #source_ident = if #field_name.is_some() {
+                    ::procenv::ValueSource::new(
+                        #env_var,
+                        if __dotenv_loaded {
+                            // Check if var existed before dotenv
+                            if __pre_dotenv_vars.contains(#env_var) {
+                                ::procenv::Source::Environment
+                            } else {
+                                ::procenv::Source::DotenvFile(None)
+                            }
+                        } else {
+                            ::procenv::Source::Environment
+                        }
+                    )
+                } else {
+                    ::procenv::ValueSource::new(
+                        #env_var,
+                        ::procenv::Source::NotSet
+                    )
+                };
+
+                __sources.add(#field_name_str, #source_ident);
+            }
         }
     }
 
@@ -606,16 +643,40 @@ impl FieldGenerator for DefaultField {
         let source_ident = format_ident!("__{}_source", field_name);
         let used_default_ident = format_ident!("__{}_used_default", field_name);
 
-        quote! {
-            let #source_ident = if #used_default_ident {
-                ::procenv::ValueSource::new(#env_var, ::procenv::Source::Default)
-            } else if __dotenv_loaded && !__pre_dotenv_vars.contains(#env_var) {
-                ::procenv::ValueSource::new(#env_var, ::procenv::Source::DotenvFile(None))
-            } else {
-                ::procenv::ValueSource::new(#env_var, ::procenv::Source::Environment)
-            };
+        // Check if this field has profile config
+        if self.profile.is_some() {
+            let profile_used_ident = format_ident!("__{}_from_profile", field_name);
 
-            __sources.add(#field_name_str, #source_ident);
+            quote! {
+                let #source_ident = if #profile_used_ident {
+                    // Value came from profile
+                    ::procenv::ValueSource::new(
+                        #env_var,
+                        ::procenv::Source::Profile(__profile.clone().unwrap_or_default())
+                    )
+                } else if #used_default_ident {
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::Default)
+                } else if __dotenv_loaded && !__pre_dotenv_vars.contains(#env_var) {
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::DotenvFile(None))
+                } else {
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::Environment)
+                };
+
+                __sources.add(#field_name_str, #source_ident);
+            }
+        } else {
+            // No profile config use original logic
+            quote! {
+                let #source_ident = if #used_default_ident {
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::Default)
+                } else if __dotenv_loaded && !__pre_dotenv_vars.contains(#env_var) {
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::DotenvFile(None))
+                } else {
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::Environment)
+                };
+
+                __sources.add(#field_name_str, #source_ident);
+            }
         }
     }
 
@@ -818,18 +879,42 @@ impl FieldGenerator for OptionalField {
 
         let source_ident = format_ident!("__{}_source", field_name);
 
-        quote! {
-            let #source_ident = if #field_name.is_some() {
-                if __dotenv_loaded && !__pre_dotenv_vars.contains(#env_var) {
-                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::DotenvFile(None))
-                } else {
-                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::Environment)
-                }
-            } else {
-                ::procenv::ValueSource::new(#env_var, ::procenv::Source::NotSet)
-            };
+        // Check if this field has profile config
+        if self.profile.is_some() {
+            let profile_used_ident = format_ident!("__{}_from_profile", field_name);
 
-            __sources.add(#field_name_str, #source_ident);
+            quote! {
+                let #source_ident = if #profile_used_ident {
+                    ::procenv::ValueSource::new(
+                        #env_var,
+                        ::procenv::Source::Profile(__profile.clone().unwrap_or_default())
+                    )
+                } else if #field_name.is_some() {
+                    if __dotenv_loaded && !__pre_dotenv_vars.contains(#env_var) {
+                        ::procenv::ValueSource::new(#env_var, ::procenv::Source::DotenvFile(None))
+                    } else {
+                        ::procenv::ValueSource::new(#env_var, ::procenv::Source::Environment)
+                    }
+                } else {
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::NotSet)
+                };
+
+                __sources.add(#field_name_str, #source_ident);
+            }
+        } else {
+            quote! {
+                let #source_ident = if #field_name.is_some() {
+                    if __dotenv_loaded && !__pre_dotenv_vars.contains(#env_var) {
+                        ::procenv::ValueSource::new(#env_var, ::procenv::Source::DotenvFile(None))
+                    } else {
+                        ::procenv::ValueSource::new(#env_var, ::procenv::Source::Environment)
+                    }
+                } else {
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::NotSet)
+                };
+
+                __sources.add(#field_name_str, #source_ident);
+            }
         }
     }
 
