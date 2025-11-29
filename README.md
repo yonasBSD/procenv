@@ -29,13 +29,13 @@ This is a learning project exploring what's possible when you combine proc-macro
 
 ## Unique Features
 
-| Feature | Description |
-|---------|-------------|
-| **Error Accumulation** | Shows ALL config errors at once—no more fix-one-run-again cycles |
-| **miette Diagnostics** | Error codes, help text, and source spans in file configs |
-| **Built-in CLI Integration** | Generates clap arguments from attributes |
-| **.env.example Generation** | Auto-generate documentation for your config |
-| **Secret Masking** | Sensitive values hidden in Debug output and error messages |
+| Feature                      | Description                                                      |
+| ---------------------------- | ---------------------------------------------------------------- |
+| **Error Accumulation**       | Shows ALL config errors at once—no more fix-one-run-again cycles |
+| **miette Diagnostics**       | Error codes, help text, and source spans in file configs         |
+| **Built-in CLI Integration** | Generates clap arguments from attributes                         |
+| **.env.example Generation**  | Auto-generate documentation for your config                      |
+| **Secret Masking**           | Sensitive values hidden in Debug output and error messages       |
 
 ## Requirements
 
@@ -83,14 +83,14 @@ procenv = { path = "path/to/procenv", features = ["file", "toml", "yaml"] }
 
 ### Feature Flags
 
-| Feature | Description |
-|---------|-------------|
-| `dotenv` | Load `.env` files automatically |
+| Feature   | Description                               |
+| --------- | ----------------------------------------- |
+| `dotenv`  | Load `.env` files automatically           |
 | `secrecy` | `SecretString` support for sensitive data |
-| `file` | JSON file configuration |
-| `toml` | TOML file support |
-| `yaml` | YAML file support |
-| `clap` | CLI argument integration |
+| `file`    | JSON file configuration                   |
+| `toml`    | TOML file support                         |
+| `yaml`    | YAML file support                         |
+| `clap`    | CLI argument integration                  |
 
 ## Attribute Reference
 
@@ -284,29 +284,29 @@ struct Config {
 
 ## Generated Methods
 
-| Method | Description |
-|--------|-------------|
-| `from_env()` | Load from environment variables |
-| `from_env_with_sources()` | Load with source attribution |
-| `from_config()` | Load from files + env (requires `file` feature) |
-| `from_config_with_sources()` | File loading with source attribution |
-| `from_args()` | Load from CLI args + env (requires `clap` feature) |
-| `env_example()` | Generate `.env.example` content |
+| Method                       | Description                                        |
+| ---------------------------- | -------------------------------------------------- |
+| `from_env()`                 | Load from environment variables                    |
+| `from_env_with_sources()`    | Load with source attribution                       |
+| `from_config()`              | Load from files + env (requires `file` feature)    |
+| `from_config_with_sources()` | File loading with source attribution               |
+| `from_args()`                | Load from CLI args + env (requires `clap` feature) |
+| `env_example()`              | Generate `.env.example` content                    |
 
 ## Comparison with Established Crates
 
-| Feature | procenv | figment | config-rs | envy |
-|---------|---------|---------|-----------|------|
-| **Maturity** | Experimental | Production | Production | Stable |
-| Error accumulation | **Yes** | No | No | No |
-| miette diagnostics | **Yes** | No | No | No |
-| .env.example generation | **Yes** | No | No | No |
-| CLI integration | **Yes** | No | No | No |
-| Compile-time derive | Yes | No | No | Yes |
-| File configs | Yes | Yes | Yes | No |
-| Custom providers | No | Yes | Yes | No |
-| Runtime value access | No | Yes | Yes | No |
-| Hot reload | No | No | Partial | No |
+| Feature                 | procenv      | figment    | config-rs  | envy   |
+| ----------------------- | ------------ | ---------- | ---------- | ------ |
+| **Maturity**            | Experimental | Production | Production | Stable |
+| Error accumulation      | **Yes**      | No         | No         | No     |
+| miette diagnostics      | **Yes**      | No         | No         | No     |
+| .env.example generation | **Yes**      | No         | No         | No     |
+| CLI integration         | **Yes**      | No         | No         | No     |
+| Compile-time derive     | Yes          | No         | No         | Yes    |
+| File configs            | Yes          | Yes        | Yes        | No     |
+| Custom providers        | No           | Yes        | Yes        | No     |
+| Runtime value access    | No           | Yes        | Yes        | No     |
+| Hot reload              | No           | No         | Partial    | No     |
 
 ## Known Limitations
 
@@ -341,6 +341,7 @@ procenv/
 ## Development Status
 
 **Completed:**
+
 - Core derive macro with error accumulation
 - File configs (TOML/JSON/YAML) with source spans
 - CLI integration via clap
@@ -349,6 +350,7 @@ procenv/
 - Secret masking in errors and Debug
 
 **Planned (see [PROGRESS.md](PROGRESS.md)):**
+
 - Phase B: Validation integration
 - Phase C: Provider extensibility
 - Phase D: Runtime value access
