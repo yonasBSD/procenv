@@ -242,6 +242,7 @@ Configuration Source:
 Sources include: `Environment`, `ConfigFile`, `DotenvFile`, `Profile`, `Default`, `Cli`, and `NotSet`.
 
 **Key features:**
+
 - Nested fields are individually attributed (e.g., `database.host`, `database.port`)
 - `.env` files are distinguished from OS environment variables
 - Full attribution across all loading methods (`from_env`, `from_config`, `from_args`)
