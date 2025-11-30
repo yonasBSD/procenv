@@ -5,3 +5,12 @@
 *.md
 !README.md
 docs/
+
+# Fuzz testing artifacts
+fuzz/target/
+fuzz/corpus/
+fuzz/artifacts/
+fuzz/Cargo.lock
+
+# Proptest regression files
+*.proptest-regressions

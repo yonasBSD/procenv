@@ -78,13 +78,28 @@ impl FileUtils {
     /// Used internally for error reporting to highlight the relevant
     /// portion of a configuration file.
     pub(crate) fn offset_to_span(offset: usize, content: &str) -> SourceSpan {
-        let remaining = &content[offset.min(content.len())..];
+        // Ensure we're at a valid UTF-8 char boundary
+        let safe_offset = Self::floor_char_boundary(content, offset);
+        let remaining = &content[safe_offset..];
         let len = remaining
             .find(|c: char| c.is_whitespace() || (c == ',') || (c == '}') || (c == ']'))
             .unwrap_or(remaining.len().min(20))
             .max(1);
 
-        SourceSpan::new(offset.into(), len)
+        SourceSpan::new(safe_offset.into(), len)
+    }
+
+    /// Find the largest valid char boundary <= offset.
+    /// This is a polyfill for str::floor_char_boundary which is unstable.
+    fn floor_char_boundary(s: &str, offset: usize) -> usize {
+        if offset >= s.len() {
+            s.len()
+        } else if s.is_char_boundary(offset) {
+            offset
+        } else {
+            // Search backwards for a valid boundary
+            (0..offset).rev().find(|&i| s.is_char_boundary(i)).unwrap_or(0)
+        }
     }
 
     /// Convert line/column (1-indexed) to byte offset.

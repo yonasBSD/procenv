@@ -614,6 +614,28 @@ Run benchmarks: `cargo bench --bench config_loading`
 - **Zero production usage** - Untested in real-world applications
 - **Minimal documentation** - No cookbook, migration guides, or comprehensive examples
 
+## Testing Infrastructure
+
+The project includes comprehensive testing beyond unit/integration tests:
+
+### Property-Based Testing (proptest)
+
+35 property tests verify critical invariants:
+- Type inference determinism and roundtrip correctness
+- Secret values never exposed in errors or debug output
+- Numeric overflow detection
+- Unicode string handling
+
+### Fuzz Testing (cargo-fuzz)
+
+6 fuzz targets for finding edge cases:
+- `fuzz_config_value` - ConfigValue parsing and conversions
+- `fuzz_maybe_redacted` - Secret redaction invariants
+- `fuzz_json_parsing` - JSON deserialization safety
+- `fuzz_toml_parsing` - TOML parsing robustness
+- `fuzz_yaml_parsing` - YAML parsing edge cases
+- `fuzz_file_utils` - FileUtils coercion and merging
+
 ## Project Structure
 
 ```
@@ -667,12 +689,15 @@ procenv/
 - Runtime access (`keys()`, `get_str()`, `has_key()`)
 - Hot reload with file watching (`watch` feature)
 
+**In Progress:**
+
+- Phase I: Production hardening (fuzz testing, property testing, audit)
+
 **Planned (see [PROGRESS.md](PROGRESS.md)):**
 
 - Phase F: Documentation & examples
 - Phase G: Advanced features (interactive mode, schema export)
 - Phase H: Ecosystem integration (axum, actix, tracing)
-- Phase I: Production hardening
 
 ## Running Tests
 
@@ -680,8 +705,16 @@ procenv/
 # Default features (dotenv only) - 186 tests
 cargo nextest run
 
-# All features - 300 tests
+# All features - 335 tests (including property tests)
 cargo nextest run --all-features
+
+# Property tests only
+cargo test --all-features --test property_tests
+
+# Fuzz testing (requires nightly)
+cargo +nightly fuzz run fuzz_config_value -- -max_total_time=60
+cargo +nightly fuzz run fuzz_maybe_redacted -- -max_total_time=60
+cargo +nightly fuzz run fuzz_toml_parsing -- -max_total_time=60
 
 # Run examples (some require features)
 cargo run --example basic
