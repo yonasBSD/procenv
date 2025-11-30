@@ -358,14 +358,22 @@ pub fn generate_from_env_with_external_prefix_impl(
             pub fn __from_env_with_external_prefix(
                 __external_prefix: std::option::Option<&str>
             ) -> std::result::Result<(Self, ::procenv::ConfigSources), ::procenv::Error> {
-                // Track pre-dotenv env vars
-                let __pre_dotenv_vars: std::collections::HashSet<&str> = [
-                    #(#env_var_names),*
-                ]
-                .iter()
-                .filter(|var| std::env::var(var).is_ok())
-                .copied()
-                .collect();
+                // Build effective env var names with prefix applied
+                let __base_env_vars: &[&str] = &[#(#env_var_names),*];
+                let __effective_env_vars: std::vec::Vec<std::string::String> = __base_env_vars
+                    .iter()
+                    .map(|var| match __external_prefix {
+                        std::option::Option::Some(prefix) => format!("{}{}", prefix, var),
+                        std::option::Option::None => (*var).to_string(),
+                    })
+                    .collect();
+
+                // Track pre-dotenv env vars using the EFFECTIVE (prefixed) names
+                let __pre_dotenv_vars: std::collections::HashSet<std::string::String> = __effective_env_vars
+                    .iter()
+                    .filter(|var| std::env::var(var).is_ok())
+                    .cloned()
+                    .collect();
 
                 // Load dotenv
                 #dotenv_load
@@ -420,19 +428,26 @@ fn generate_simple_source_tracking(field: &dyn FieldGenerator) -> QuoteStream {
     // For regular fields
     if let Some(env_var) = field.env_var_name() {
         let source_ident = format_ident!("__{}_source", name);
+        let effective_var_ident = format_ident!("__{}_effective_var", name);
         let has_default = field.default_value().is_some();
 
         quote! {
-            let #source_ident = if std::env::var(#env_var).is_ok() {
-                if __dotenv_loaded && !__pre_dotenv_vars.contains(#env_var) {
-                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::DotenvFile(None))
+            // Build effective env var name with external prefix
+            let #effective_var_ident: std::string::String = match __external_prefix {
+                std::option::Option::Some(prefix) => format!("{}{}", prefix, #env_var),
+                std::option::Option::None => #env_var.to_string(),
+            };
+
+            let #source_ident = if std::env::var(&#effective_var_ident).is_ok() {
+                if __dotenv_loaded && !__pre_dotenv_vars.contains(&#effective_var_ident) {
+                    ::procenv::ValueSource::new(&#effective_var_ident, ::procenv::Source::DotenvFile(None))
                 } else {
-                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::Environment)
+                    ::procenv::ValueSource::new(&#effective_var_ident, ::procenv::Source::Environment)
                 }
             } else if #has_default {
-                ::procenv::ValueSource::new(#env_var, ::procenv::Source::Default)
+                ::procenv::ValueSource::new(&#effective_var_ident, ::procenv::Source::Default)
             } else {
-                ::procenv::ValueSource::new(#env_var, ::procenv::Source::NotSet)
+                ::procenv::ValueSource::new(&#effective_var_ident, ::procenv::Source::NotSet)
             };
             __sources.add(#name_str, #source_ident);
         }

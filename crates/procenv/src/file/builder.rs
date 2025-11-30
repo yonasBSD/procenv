@@ -349,9 +349,9 @@ impl ConfigBuilder {
         let (merged, origins) = self.merge()?;
 
         // Use serde_path_to_error to get exact path on failure
-        let deserialier: SJSON::Value = merged.into_deserializer();
+        let deserializer = merged.into_deserializer();
 
-        let result = serde_path_to_error::deserialize(deserialier).map_err(|e| {
+        let result = serde_path_to_error::deserialize(deserializer).map_err(|e| {
             let path = e.path().to_string();
             let inner_msg = e.inner().to_string();
 

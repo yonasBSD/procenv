@@ -136,10 +136,22 @@ impl<T: Clone + Send + Sync + 'static> ConfigWatcher<T> {
         // Spawn watcher thread
         let thread_state = state.clone();
         let debounce = watcher_config.debounce;
+
+        // Store both original paths AND canonical paths (if file exists)
+        // This allows matching newly created files that didn't exist at startup
         let watched_paths: HashSet<PathBuf> = watcher_config
             .paths
             .iter()
-            .filter_map(|p| p.canonicalize().ok())
+            .flat_map(|p| {
+                let mut paths = vec![p.clone()];
+                // Also store canonical path if file exists
+                if let Ok(canonical) = p.canonicalize() {
+                    if canonical != *p {
+                        paths.push(canonical);
+                    }
+                }
+                paths
+            })
             .collect();
 
         let thread_handle = thread::Builder::new()
@@ -323,8 +335,12 @@ fn watcher_loop<T, F>(
 fn process_notify_event(event: &Event, watched_paths: &HashSet<PathBuf>) -> Option<ChangeTrigger> {
     // Check if any of the event paths are in our watched set
     for path in &event.paths {
-        let canonical = path.canonicalize().ok()?;
-        if watched_paths.contains(&canonical) {
+        // Check direct path match first (handles newly created files)
+        let is_watched = watched_paths.contains(path)
+            // Then try canonical match (handles existing files with symlinks/relative paths)
+            || path.canonicalize().is_ok_and(|c| watched_paths.contains(&c));
+
+        if is_watched {
             return match event.kind {
                 EventKind::Create(_) => Some(ChangeTrigger::FileCreated(path.clone())),
                 EventKind::Modify(_) => Some(ChangeTrigger::FileModified(path.clone())),

@@ -49,8 +49,8 @@ pub fn generate_runtime_access_impl(
         })
         .collect();
 
-    // Flatten field delegation
-    let flatten_arms: Vec<_> = generators
+    // Flatten field delegation for get_str
+    let flatten_get_str_arms: Vec<_> = generators
         .iter()
         .filter(|g| g.is_flatten())
         .map(|g| {
@@ -63,6 +63,23 @@ pub fn generate_runtime_access_impl(
                     self.#name.get_str(&key[#prefix.len()..])
                 }
             }
+        })
+        .collect();
+
+    // Flatten field delegation for has_key
+    let flatten_has_key_arms: Vec<_> = generators
+        .iter()
+        .filter(|g| g.is_flatten())
+        .filter_map(|g| {
+            let ty = g.field_type()?;
+            let name_str = g.name().to_string();
+            let prefix = format!("{}.", name_str);
+
+            Some(quote! {
+                if key.starts_with(#prefix) {
+                    return <#ty>::has_key(&key[#prefix.len()..]);
+                }
+            })
         })
         .collect();
 
@@ -79,14 +96,22 @@ pub fn generate_runtime_access_impl(
             pub fn get_str(&self, key: &str) -> Option<String> {
                 match key {
                     #(#get_str_arms)*
-                    #(#flatten_arms)*
+                    #(#flatten_get_str_arms)*
                     _ => None,
                 }
             }
 
             /// Checks if a key exists.
             pub fn has_key(key: &str) -> bool {
-                Self::keys().contains(&key) || key.contains('.')
+                // Check direct keys first
+                if Self::keys().contains(&key) {
+                    return true;
+                }
+
+                // Check nested keys via flatten fields
+                #(#flatten_has_key_arms)*
+
+                false
             }
         }
     }
