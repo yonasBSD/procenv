@@ -1,0 +1,180 @@
+//! Validation code generation.
+
+use proc_macro2::TokenStream as QuoteStream;
+use quote::{format_ident, quote};
+use syn::{Generics, Ident};
+
+use crate::field::FieldGenerator;
+use crate::parse::EnvConfigAttr;
+
+/// Generate the `from_env_validated` method for structs with validation.
+pub fn generate_validated_impl(
+    struct_name: &Ident,
+    generics: &Generics,
+    generators: &[Box<dyn FieldGenerator>],
+    _env_config_attr: &EnvConfigAttr,
+) -> QuoteStream {
+    let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
+
+    // Generate custom field validation calls
+    let custom_validations: Vec<QuoteStream> = generators
+        .iter()
+        .filter_map(|g| {
+            let validate_fn = g.validate_fn()?;
+            let field_name = g.name();
+            let field_name_str = field_name.to_string();
+            let fn_ident = format_ident!("{}", validate_fn);
+
+            Some(quote! {
+                if let Err(e) = #fn_ident(&__config.#field_name) {
+                    __validation_errors.push(::procenv::ValidationFieldError::new(
+                        #field_name_str,
+                        "custom",
+                        e.message
+                            .as_ref()
+                            .map(|m| m.to_string())
+                            .unwrap_or_else(|| e.code.to_string()),
+                    ));
+                }
+            })
+        })
+        .collect();
+
+    quote! {
+        #[cfg(feature = "validator")]
+        impl #impl_generics #struct_name #type_generics #where_clause
+        where
+            Self: ::validator::Validate,
+        {
+            /// Load configuration from environment variables with validation.
+            pub fn from_env_validated() -> std::result::Result<Self, ::procenv::Error> {
+                let __config = Self::from_env()?;
+
+                let mut __validation_errors: Vec<::procenv::ValidationFieldError> = Vec::new();
+
+                if let Err(e) = ::validator::Validate::validate(&__config) {
+                    __validation_errors.extend(::procenv::validation_errors_to_procenv(e));
+                }
+
+                #(#custom_validations)*
+
+                if !__validation_errors.is_empty() {
+                    return Err(::procenv::Error::Validation {
+                        errors: __validation_errors,
+                    });
+                }
+
+                Ok(__config)
+            }
+
+            pub fn from_env_validated_with_sources() -> std::result::Result<(Self, ::procenv::ConfigSources), ::procenv::Error> {
+                let (__config, __sources) = Self::from_env_with_sources()?;
+
+                let mut __validation_errors: Vec<::procenv::ValidationFieldError> = Vec::new();
+
+                if let Err(e) = ::validator::Validate::validate(&__config) {
+                    __validation_errors.extend(::procenv::validation_errors_to_procenv(e));
+                }
+
+                #(#custom_validations)*
+
+                if !__validation_errors.is_empty() {
+                    return Err(::procenv::Error::Validation {
+                        errors: __validation_errors,
+                    });
+                }
+
+                Ok((__config, __sources))
+            }
+        }
+    }
+}
+
+/// Generate validated file config loading.
+#[allow(dead_code)]
+pub fn generate_from_config_validated_impl(
+    struct_name: &Ident,
+    generics: &Generics,
+    generators: &[Box<dyn FieldGenerator>],
+) -> QuoteStream {
+    let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
+
+    // Generate custom field validation calls
+    let custom_validations: Vec<QuoteStream> = generators
+        .iter()
+        .filter_map(|g| {
+            let validate_fn = g.validate_fn()?;
+            let field_name = g.name();
+            let field_name_str = field_name.to_string();
+            let fn_ident = format_ident!("{validate_fn}");
+
+            Some(quote! {
+                if let Err(error) = #fn_ident(&__config.#field_name) {
+                    __validation_errors.push(::procenv::ValidationFieldError::new(
+                        #field_name_str,
+                        "custom",
+                        error
+                            .message
+                            .as_ref()
+                            .map(|m| m.to_string())
+                            .unwrap_or_else(|| error.code.to_string()),
+                    ));
+                }
+            })
+        })
+        .collect();
+
+    quote! {
+        #[cfg(all(feature = "validator", feature = "file"))]
+        impl #impl_generics #struct_name #type_generics #where_clause
+        where
+            Self: ::validator::Validate + ::serde::de::DeserializeOwned,
+        {
+            /// Load configuration from files with validation.
+            pub fn from_config_validated() -> std::result::Result<Self, ::procenv::Error> {
+                let __config = Self::from_config()?;
+
+                let mut __validation_errors: Vec<::procenv::ValidationFieldError> = Vec::new();
+
+                if let Err(e) = ::validator::Validate::validate(&__config) {
+                    __validation_errors.extend(::procenv::validation_errors_to_procenv(e));
+                }
+
+                #(#custom_validations)*
+
+                if !__validation_errors.is_empty() {
+                    return Err(
+                        ::procenv::Error::Validation {
+                            errors: __validation_errors,
+                        }
+                    );
+                }
+
+                Ok(__config)
+            }
+
+            /// Load configuration from files with validation and source attribution.
+            pub fn from_config_validated_with_sources() -> std::result::Result<(Self, ::procenv::ConfigSources), ::procenv::Error> {
+                let (__config, __sources) = Self::from_config_with_sources()?;
+
+                let mut __validation_errors: Vec<::procenv::ValidationFieldError> = Vec::new();
+
+                if let Err(e) = ::validator::Validate::validate(&__config) {
+                    __validation_errors.extend(::procenv::validation_errors_to_procenv(e));
+                }
+
+                #(#custom_validations)*
+
+                if !__validation_errors.is_empty() {
+                    return Err(
+                        ::procenv::Error::Validation {
+                            errors: __validation_errors,
+                        }
+                    );
+                }
+
+                Ok((__config, __sources))
+            }
+        }
+    }
+}
