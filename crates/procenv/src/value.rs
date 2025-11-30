@@ -284,11 +284,14 @@ impl ConfigValue {
     }
 
     /// Returns string representation (borrowed when possible).
+    ///
+    /// Uses `Display` formatting for non-String variants to avoid cloning.
     fn to_string_repr(&self) -> std::borrow::Cow<'_, str> {
         use std::borrow::Cow;
         match self {
             ConfigValue::String(s) => Cow::Borrowed(s),
-            other => Cow::Owned(other.clone().into_string()),
+            // Use Display trait instead of cloning + into_string()
+            other => Cow::Owned(other.to_string()),
         }
     }
 }
@@ -414,11 +417,14 @@ impl Display for ConfigValue {
             }
             ConfigValue::Map(m) => {
                 write!(f, "{{")?;
-                for (i, (k, v)) in m.iter().enumerate() {
+                // Sort keys for deterministic output
+                let mut keys: Vec<_> = m.keys().collect();
+                keys.sort();
+                for (i, k) in keys.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}: {}", k, v)?;
+                    write!(f, "{}: {}", k, m.get(*k).unwrap())?;
                 }
                 write!(f, "}}")
             }

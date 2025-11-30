@@ -112,7 +112,7 @@ pub enum FileError {
         /// The JSON path where the error occurred (e.g., "database.port")
         path_str: String,
 
-        /// The to the file
+        /// The path to the file
         file_path: String,
 
         /// The source file content for display

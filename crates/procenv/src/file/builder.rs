@@ -111,6 +111,7 @@ impl ConfigBuilder {
     /// let builder = ConfigBuilder::new()
     ///     .defaults(Defaults { port: 8080, debug: false });
     /// ```
+    #[must_use]
     pub fn defaults<T: Serialize>(mut self, defaults: T) -> Self {
         if let Ok(value) = SJSON::to_value(defaults) {
             self.base = value;
@@ -133,6 +134,7 @@ impl ConfigBuilder {
     ///         "debug": false
     ///     }));
     /// ```
+    #[must_use]
     pub fn defaults_value(mut self, value: SJSON::Value) -> Self {
         self.base = value;
 
@@ -154,6 +156,7 @@ impl ConfigBuilder {
     /// let builder = ConfigBuilder::new()
     ///     .file("config.toml");  // Must exist
     /// ```
+    #[must_use]
     pub fn file<P: AsRef<Path>>(mut self, path: P) -> Self {
         self.files.push((path.as_ref().to_path_buf(), true));
 
@@ -176,6 +179,7 @@ impl ConfigBuilder {
     ///     .file("config.toml")
     ///     .file_optional("config.local.toml");  // OK if missing
     /// ```
+    #[must_use]
     pub fn file_optional<P: AsRef<Path>>(mut self, path: P) -> Self {
         self.files.push((path.as_ref().to_path_buf(), false));
 
@@ -193,6 +197,7 @@ impl ConfigBuilder {
     /// - `APP_DATABASE_HOST` → `database.host`
     /// - `APP_PORT` → `port`
     /// - `OTHER_VAR` → ignored
+    #[must_use]
     pub fn env_prefix(mut self, prefix: impl Into<String>) -> Self {
         self.env_prefix = Some(prefix.into());
 
@@ -208,6 +213,7 @@ impl ConfigBuilder {
     ///
     /// With separator "_" and prefix "APP_":
     /// - `APP_DATABASE_HOST` becomes `database.host`
+    #[must_use]
     pub fn env_separator(mut self, separator: impl Into<String>) -> Self {
         self.env_separator = separator.into();
 
@@ -235,6 +241,7 @@ impl ConfigBuilder {
     ///     .env_mapping("api_key", "SECRET_API_KEY")     // Different naming
     ///     .build()?;
     /// ```
+    #[must_use]
     pub fn env_mapping(
         mut self,
         field_path: impl Into<String>,

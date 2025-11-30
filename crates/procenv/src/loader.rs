@@ -36,6 +36,8 @@ pub struct ConfigLoader {
     cache: HashMap<String, ProviderValue>,
     sources: ConfigSources,
     errors: Vec<Error>,
+    /// Whether providers have been sorted by priority.
+    sorted: bool,
 }
 
 impl ConfigLoader {
@@ -46,23 +48,28 @@ impl ConfigLoader {
             cache: HashMap::new(),
             sources: ConfigSources::new(),
             errors: Vec::new(),
+            sorted: false,
         }
     }
 
     /// Adds a provider to the loader.
     ///
     /// Providers are automatically sorted by priority when values are retrieved.
+    #[must_use]
     pub fn with_provider(mut self, provider: Box<dyn Provider>) -> Self {
         self.providers.push(provider);
+        self.sorted = false; // Mark as unsorted when new provider added
         self
     }
 
     /// Adds an environment provider.
+    #[must_use]
     pub fn with_env(self) -> Self {
         self.with_provider(Box::new(crate::provider::EnvProvider::new()))
     }
 
     /// Adds an environment provider with a prefix.
+    #[must_use]
     pub fn with_env_prefix(self, prefix: impl Into<String>) -> Self {
         self.with_provider(Box::new(crate::provider::EnvProvider::with_prefix(prefix)))
     }
@@ -109,7 +116,10 @@ impl ConfigLoader {
 
     /// Sorts providers by priority (lower = higher priority).
     fn sort_providers(&mut self) {
-        self.providers.sort_by_key(|p| p.priority());
+        if !self.sorted {
+            self.providers.sort_by_key(|p| p.priority());
+            self.sorted = true;
+        }
     }
 
     /// Gets a raw value from the provider chain.

@@ -284,7 +284,7 @@ impl Display for ConfigSources {
         writeln!(f, "Configuration Source:")?;
         writeln!(f, "{}", "-".repeat(50))?;
 
-        // Fins max field name length for alignment
+        // Find max field name length for alignment
         let max_len = self
             .entries
             .iter()

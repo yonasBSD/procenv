@@ -371,7 +371,7 @@ pub type ProviderResult<T> = Result<Option<T>, ProviderError>;
 /// }
 /// ```
 pub trait Provider: Send + Sync {
-    /// Returns the provider's name for error messages and source attributtion.
+    /// Returns the provider's name for error messages and source attribution.
     fn name(&self) -> &str;
 
     /// Gets a single configuration value by key.
@@ -380,7 +380,7 @@ pub trait Provider: Send + Sync {
     ///
     /// - `Ok(Some(value))` if the key was found
     /// - `Ok(None)` if the key was not found (loader will try next provider)
-    /// - `Err(e)` if an error occured
+    /// - `Err(e)` if an error occurred
     fn get(&self, key: &str) -> ProviderResult<ProviderValue>;
 
     /// Gets multiple configuration values in a single call.
