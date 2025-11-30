@@ -75,23 +75,32 @@ fn main() -> Result<(), procenv::Error> {
 
 ```toml
 [dependencies]
+# Default features include: dotenv, secrecy, clap, file-all (toml/yaml/json)
 procenv = { path = "path/to/procenv" }
 
-# With file config support
-procenv = { path = "path/to/procenv", features = ["file", "toml", "yaml"] }
+# Minimal (no default features)
+procenv = { path = "path/to/procenv", default-features = false }
+
+# With validation support
+procenv = { path = "path/to/procenv", features = ["validator"] }
 ```
 
 ### Feature Flags
 
-| Feature     | Description                                   |
-| ----------- | --------------------------------------------- |
-| `dotenv`    | Load `.env` files automatically               |
-| `secrecy`   | `SecretString` support for sensitive data     |
-| `file`      | JSON file configuration                       |
-| `toml`      | TOML file support                             |
-| `yaml`      | YAML file support                             |
-| `clap`      | CLI argument integration                      |
-| `validator` | Validation integration with `validator` crate |
+| Feature     | Default | Description                                   |
+| ----------- | ------- | --------------------------------------------- |
+| `dotenv`    | **Yes** | Load `.env` files automatically               |
+| `secrecy`   | **Yes** | `SecretString` support for sensitive data     |
+| `clap`      | **Yes** | CLI argument integration                      |
+| `file`      | **Yes** | File configuration (enables JSON)             |
+| `toml`      | **Yes** | TOML file support                             |
+| `yaml`      | **Yes** | YAML file support                             |
+| `json`      | **Yes** | JSON file support (included in `file`)        |
+| `file-all`  | **Yes** | Meta-feature: enables `toml` + `yaml` + `json`|
+| `validator` | No      | Validation integration with `validator` crate |
+| `serde`     | No      | Standalone serde support (without file loading) |
+| `tracing`   | No      | Tracing instrumentation                       |
+| `full`      | No      | Enable all features                           |
 
 ## Attribute Reference
 
