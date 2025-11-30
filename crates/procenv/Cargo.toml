@@ -28,6 +28,10 @@ tracing = ["dep:tracing"]
 async = ["provider", "dep:tokio", "dep:futures"]
 provider = []
 
+# Hot reload support (Phase E)
+watch = ["file", "dep:notify", "dep:parking_lot", "dep:crossbeam-channel"]
+watch-async = ["watch", "async"]
+
 # File format support (Phase 13)
 # Enable file-based configuration loading
 file = ["dep:serde", "dep:serde_json", "dep:serde_path_to_error"]
@@ -74,9 +78,15 @@ futures = { workspace = true, optional = true }
 validator = { workspace = true, optional = true }
 num-traits = { workspace = true }
 
+# Hot reload (Phase E)
+notify = { workspace = true, optional = true }
+parking_lot = { workspace = true, optional = true }
+crossbeam-channel = { workspace = true, optional = true }
+
 [dev-dependencies]
 trybuild = "1.0.114"
 serial_test = "3.2.0"
+tempfile = "3.20"
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
@@ -95,6 +105,10 @@ required-features = ["validator"]
 [[example]]
 name = "custom_provider"
 required-features = ["provider"]
+
+[[example]]
+name = "hot_reload"
+required-features = ["watch"]
 
 [[bench]]
 name = "config_loading"

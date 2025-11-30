@@ -81,8 +81,14 @@ fn main() -> Result<(), procenv::Error> {
 
     println!("3. Nested config access (dot notation):");
     println!("   name          = {:?}", full_config.get_str("name"));
-    println!("   database.host = {:?}", full_config.get_str("database.host"));
-    println!("   database.port = {:?}", full_config.get_str("database.port"));
+    println!(
+        "   database.host = {:?}",
+        full_config.get_str("database.host")
+    );
+    println!(
+        "   database.port = {:?}",
+        full_config.get_str("database.port")
+    );
     println!();
 
     // -------------------------------------------------------------------------

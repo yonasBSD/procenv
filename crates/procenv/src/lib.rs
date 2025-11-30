@@ -169,3 +169,16 @@ pub use provider::{
 };
 
 pub use loader::ConfigLoader;
+
+// ============================================================================
+// Hot Reload Support (Phase E)
+// ============================================================================
+
+#[cfg(feature = "watch")]
+pub mod watch;
+
+#[cfg(feature = "watch")]
+pub use watch::{
+    ChangeTrigger, ChangedField, ConfigChange, ConfigHandle, WatchBuilder, WatchCommand,
+    WatchError, WatchedConfig,
+};
