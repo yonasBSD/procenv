@@ -9,99 +9,146 @@
 //!
 //! # Example
 //!
-//! ```rust, ignore
-//! use procenv::collections::HashMap;
+//! ```rust,ignore
+//! use procenv::ConfigValue;
 //!
 //! let value = ConfigValue::Integer(8080);
-//!
-//! // Type-safe extraction
-//! let port: i64 = value.as_i64.unwrap();
-//!
-//! // Parse to specific type
-//! let port: u16 = value.parse().unwrap();
+//! let port: i64 = value.to_i64().unwrap();
+//! let port: u16 = value.cast().unwrap();
 //! ```
 
 use std::collections::HashMap;
-use std::fmt::{self, Display, Formatter};
-use std::str::FromStr;
+
+// ============================================================================
+// Macros for reducing boilerplate
+// ============================================================================
+
+/// Generates `From<T>` implementations for ConfigValue
+macro_rules! impl_from_integer {
+    ($($t:ty => $variant:ident),+ $(,)?) => {
+        $(
+            impl From<$t> for ConfigValue {
+                fn from(n: $t) -> Self {
+                    ConfigValue::$variant(n as _)
+                }
+            }
+        )+
+    };
+}
+
+/// Generates `to_*` methods that use ToPrimitive
+macro_rules! impl_to_primitive {
+    ($($method:ident -> $t:ty),+ $(,)?) => {
+        $(
+            #[doc = concat!("Converts to `", stringify!($t), "` if possible.")]
+            pub fn $method(&self) -> Option<$t> {
+                match self {
+                    ConfigValue::Integer(n) => n.$method(),
+
+                    ConfigValue::UnsignedInteger(n) => n.$method(),
+
+                    ConfigValue::Float(f) => f.$method(),
+
+                    ConfigValue::String(s) => s.parse().ok(),
+
+                    ConfigValue::Boolean(b) => Some(
+                        if *b {
+                            1 as $t
+                        } else {
+                            0 as $t
+                        }
+                    )
+
+                    _ => None,
+                }
+            }
+        )+
+    };
+}
+
+// ============================================================================
+// ConfigValue Enum
+// ============================================================================
 
 /// A type-erased configuration value.
 ///
-/// This enum represents configuration values that can be accessed dynamically
-/// without compile-time type information. It supports common configuration
-/// value types and provides conversion methods.
+/// Supports common configuration value types with automatic conversions
+/// via the `num-traits` crate.
 ///
 /// # Supported Types
 ///
 /// | Variant | Rust Types |
 /// |---------|------------|
-/// | `String` | `String` , `&str`|
-/// | `Integer` | `i8`, `i16`, `i32`, `i64`, `isize` |
-/// | `UnsignedInteger` | `u8`, `u16`, `u32`, `u64`, `usize` |
+/// | `String` | `String`, `&str` |
+/// | `Integer` | `i8` - `i64`, `isize` |
+/// | `UnsignedInteger` | `u8` - `u64`, `usize` |
 /// | `Float` | `f32`, `f64` |
 /// | `Boolean` | `bool` |
-/// | `List` | `Vec<T>` |
-/// | `Map` | `HashMap<String, T>` |
-///
-/// # Example
-/// ```rust, ignore
-/// use procenv::ConfigValue;
-///
-/// // From environment or provider
-/// let value = ConfigValue::from_str_value("8080");
-///
-/// // Access Methods
-/// assert_eq!(value.as_str(), Some("8080"));
-/// assert_eq!(value.as_i64(), Some(8080));
-/// assert_eq!(value.parse::<u16>().unwrap(), 8080);
-/// ```
+/// | `List` | `Vec<ConfigValue>` |
+/// | `Map` | `HashMap<String, ConfigValue>` |
 #[derive(Clone, Debug, PartialEq)]
 pub enum ConfigValue {
     /// A string value.
     String(String),
 
-    /// A signed integer value (stored as i64 for maximum range).
+    /// A signed integer (stored as i64).
     Integer(i64),
 
-    /// An unsigned integer value (stored as u64 for maximum range).
+    /// An unsigned integer (stored as u64).
     UnsignedInteger(u64),
 
-    /// A floating-point value (stored as f64 for maximum precision).
+    /// A floating-point value (stored as f64).
     Float(f64),
 
     /// A boolean value.
     Boolean(bool),
 
-    /// A list of values (for array/vector configuration).
+    /// A list of values.
     List(Vec<ConfigValue>),
 
-    /// A map of string keys to values (for nested configurations).
+    /// A map of string keys to values.
     Map(HashMap<String, ConfigValue>),
 
-    /// No value (represents missing optional values).
+    /// No value (missing optional).
     None,
 }
 
+// ============================================================================
+// Constructors
+// ============================================================================
+
 impl ConfigValue {
-    /// Creates a `ConfigValue` from a raw string, attempting to infer the type.
+    /// Creates from a string with automatic type inference.
     ///
-    /// Type inference order:
-    /// 1. Boolean (`true`/`false`)
-    /// 2. Unsigned integer (if positive and fits in u64)
-    /// 3. Signed integer (if fits in i64)
-    /// 4. Float (if contains `.` or `e`/`E`)
-    /// 5. String (fallback)
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// use procenv::ConfigValue;
-    ///
-    /// assert!(matches!(ConfigValue::from_str_infer("true")), ConfigValue::Boolean(true));
-    /// assert!(matches!(ConfigValue::from_str_infer("42")), ConfigValue::UnsignedInteger(42));
-    /// assert!(matches!(ConfigValue::from_str_infer("-5")))
-    /// ```
+    /// Inference order: bool -> unsigned int -> signed int -> float -> string
     pub fn from_str_infer(s: &str) -> Self {
-        todo!()
+        // Boolean
+        match s.to_ascii_lowercase().as_str() {
+            "true" => return ConfigValue::Boolean(true),
+
+            "false" => return ConfigValue::Boolean(false),
+
+            _ => {}
+        }
+
+        // Unsigned integer
+        if let Ok(n) = s.parse::<u64>() {
+            return ConfigValue::UnsignedInteger(n);
+        }
+
+        // Signed integer (negative numbers)
+        if let Ok(n) = s.parse::<i64>() {
+            return ConfigValue::Integer(n);
+        }
+
+        // Float (contains decimal or exponent)
+        if (s.contains('.') || s.contains('e') || s.contains('E'))
+            && let Ok(f) = s.parse::<f64>()
+        {
+            return ConfigValue::Float(f);
+        }
+
+        // Default: string
+        ConfigValue::String(s.to_string())
     }
 }

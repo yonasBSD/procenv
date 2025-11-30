@@ -154,7 +154,7 @@ pub use file::{ConfigBuilder, FileFormat, FileUtils, OriginTracker};
 
 pub mod loader;
 pub mod provider;
-// pub mod value;
+pub mod value;
 
 #[cfg(feature = "dotenv")]
 pub use provider::DotenvProvider;
