@@ -1,0 +1,583 @@
+//! Edge case tests for comprehensive coverage.
+//!
+//! Tests for unusual inputs, boundary conditions, and error handling.
+
+use procenv::EnvConfig;
+use serial_test::serial;
+
+/// Helper to set env vars for tests
+fn with_env<F, R>(vars: &[(&str, &str)], f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    unsafe {
+        for (k, v) in vars {
+            std::env::set_var(*k, *v);
+        }
+    }
+
+    let result = f();
+
+    unsafe {
+        for (k, _) in vars {
+            std::env::remove_var(*k);
+        }
+    }
+
+    result
+}
+
+fn cleanup_vars(vars: &[&str]) {
+    unsafe {
+        for k in vars {
+            std::env::remove_var(*k);
+        }
+    }
+}
+
+// ============================================================================
+// Empty and Whitespace Value Tests
+// ============================================================================
+
+#[derive(EnvConfig)]
+struct EmptyValueConfig {
+    #[env(var = "EDGE_EMPTY")]
+    value: String,
+}
+
+#[test]
+#[serial]
+fn test_empty_string_is_valid_value() {
+    cleanup_vars(&["EDGE_EMPTY"]);
+
+    with_env(&[("EDGE_EMPTY", "")], || {
+        let config = EmptyValueConfig::from_env().expect("empty string should be valid");
+        assert_eq!(config.value, "");
+    })
+}
+
+#[test]
+#[serial]
+fn test_whitespace_only_is_preserved() {
+    cleanup_vars(&["EDGE_EMPTY"]);
+
+    with_env(&[("EDGE_EMPTY", "   ")], || {
+        let config = EmptyValueConfig::from_env().expect("whitespace should be valid");
+        assert_eq!(config.value, "   ");
+    })
+}
+
+// ============================================================================
+// Numeric Parsing Edge Cases
+// ============================================================================
+
+#[derive(EnvConfig)]
+struct NumericConfig {
+    #[env(var = "EDGE_U16")]
+    port: u16,
+
+    #[env(var = "EDGE_I32")]
+    offset: i32,
+
+    #[env(var = "EDGE_F64")]
+    ratio: f64,
+}
+
+#[test]
+#[serial]
+fn test_u16_max_value() {
+    cleanup_vars(&["EDGE_U16", "EDGE_I32", "EDGE_F64"]);
+
+    with_env(
+        &[
+            ("EDGE_U16", "65535"),
+            ("EDGE_I32", "0"),
+            ("EDGE_F64", "1.0"),
+        ],
+        || {
+            let config = NumericConfig::from_env().expect("max u16 should parse");
+            assert_eq!(config.port, 65535);
+        },
+    )
+}
+
+#[test]
+#[serial]
+fn test_u16_overflow_fails() {
+    cleanup_vars(&["EDGE_U16", "EDGE_I32", "EDGE_F64"]);
+
+    with_env(
+        &[
+            ("EDGE_U16", "65536"),
+            ("EDGE_I32", "0"),
+            ("EDGE_F64", "1.0"),
+        ],
+        || {
+            let result = NumericConfig::from_env();
+            assert!(result.is_err());
+        },
+    )
+}
+
+#[test]
+#[serial]
+fn test_negative_i32() {
+    cleanup_vars(&["EDGE_U16", "EDGE_I32", "EDGE_F64"]);
+
+    with_env(
+        &[
+            ("EDGE_U16", "80"),
+            ("EDGE_I32", "-2147483648"),
+            ("EDGE_F64", "1.0"),
+        ],
+        || {
+            let config = NumericConfig::from_env().expect("min i32 should parse");
+            assert_eq!(config.offset, i32::MIN);
+        },
+    )
+}
+
+#[test]
+#[serial]
+fn test_float_scientific_notation() {
+    cleanup_vars(&["EDGE_U16", "EDGE_I32", "EDGE_F64"]);
+
+    with_env(
+        &[
+            ("EDGE_U16", "80"),
+            ("EDGE_I32", "0"),
+            ("EDGE_F64", "1.5e-10"),
+        ],
+        || {
+            let config = NumericConfig::from_env().expect("scientific notation should parse");
+            assert!((config.ratio - 1.5e-10).abs() < 1e-20);
+        },
+    )
+}
+
+#[test]
+#[serial]
+fn test_float_infinity() {
+    cleanup_vars(&["EDGE_U16", "EDGE_I32", "EDGE_F64"]);
+
+    with_env(
+        &[("EDGE_U16", "80"), ("EDGE_I32", "0"), ("EDGE_F64", "inf")],
+        || {
+            let config = NumericConfig::from_env().expect("infinity should parse");
+            assert!(config.ratio.is_infinite());
+        },
+    )
+}
+
+#[test]
+#[serial]
+fn test_leading_zeros_numeric() {
+    cleanup_vars(&["EDGE_U16", "EDGE_I32", "EDGE_F64"]);
+
+    with_env(
+        &[("EDGE_U16", "0080"), ("EDGE_I32", "0"), ("EDGE_F64", "1.0")],
+        || {
+            let config = NumericConfig::from_env().expect("leading zeros should parse");
+            assert_eq!(config.port, 80);
+        },
+    )
+}
+
+// ============================================================================
+// Boolean Parsing Edge Cases
+// ============================================================================
+
+#[derive(EnvConfig)]
+struct BoolConfig {
+    #[env(var = "EDGE_BOOL")]
+    flag: bool,
+}
+
+#[test]
+#[serial]
+fn test_bool_true_lowercase() {
+    with_env(&[("EDGE_BOOL", "true")], || {
+        let config = BoolConfig::from_env().expect("'true' should parse");
+        assert!(config.flag);
+    })
+}
+
+#[test]
+#[serial]
+fn test_bool_false_lowercase() {
+    with_env(&[("EDGE_BOOL", "false")], || {
+        let config = BoolConfig::from_env().expect("'false' should parse");
+        assert!(!config.flag);
+    })
+}
+
+#[test]
+#[serial]
+fn test_bool_mixed_case_fails() {
+    // Rust's bool::FromStr is case-sensitive
+    with_env(&[("EDGE_BOOL", "True")], || {
+        let result = BoolConfig::from_env();
+        assert!(result.is_err(), "Mixed case 'True' should fail parsing");
+    })
+}
+
+#[test]
+#[serial]
+fn test_bool_1_fails() {
+    // Rust's bool::FromStr doesn't accept 1/0
+    with_env(&[("EDGE_BOOL", "1")], || {
+        let result = BoolConfig::from_env();
+        assert!(result.is_err(), "'1' should fail bool parsing");
+    })
+}
+
+// ============================================================================
+// Special Characters in Values
+// ============================================================================
+
+#[derive(EnvConfig)]
+struct SpecialCharsConfig {
+    #[env(var = "EDGE_SPECIAL")]
+    value: String,
+}
+
+#[test]
+#[serial]
+fn test_special_chars_equals() {
+    with_env(&[("EDGE_SPECIAL", "key=value=more")], || {
+        let config = SpecialCharsConfig::from_env().expect("equals should work");
+        assert_eq!(config.value, "key=value=more");
+    })
+}
+
+#[test]
+#[serial]
+fn test_special_chars_quotes() {
+    with_env(&[("EDGE_SPECIAL", r#"say "hello""#)], || {
+        let config = SpecialCharsConfig::from_env().expect("quotes should work");
+        assert_eq!(config.value, r#"say "hello""#);
+    })
+}
+
+#[test]
+#[serial]
+fn test_special_chars_newlines() {
+    with_env(&[("EDGE_SPECIAL", "line1\nline2\nline3")], || {
+        let config = SpecialCharsConfig::from_env().expect("newlines should work");
+        assert_eq!(config.value, "line1\nline2\nline3");
+    })
+}
+
+#[test]
+#[serial]
+fn test_special_chars_unicode() {
+    with_env(&[("EDGE_SPECIAL", "café ☕ 日本語")], || {
+        let config = SpecialCharsConfig::from_env().expect("unicode should work");
+        assert_eq!(config.value, "café ☕ 日本語");
+    })
+}
+
+#[test]
+#[serial]
+fn test_special_chars_emoji() {
+    with_env(&[("EDGE_SPECIAL", "🚀🎉💻")], || {
+        let config = SpecialCharsConfig::from_env().expect("emoji should work");
+        assert_eq!(config.value, "🚀🎉💻");
+    })
+}
+
+// ============================================================================
+// Optional Field Edge Cases
+// ============================================================================
+
+#[derive(EnvConfig)]
+struct OptionalConfig {
+    #[env(var = "EDGE_OPT_STR", optional)]
+    opt_string: Option<String>,
+
+    #[env(var = "EDGE_OPT_NUM", optional)]
+    opt_number: Option<u32>,
+}
+
+#[test]
+#[serial]
+fn test_optional_empty_string_is_some() {
+    cleanup_vars(&["EDGE_OPT_STR", "EDGE_OPT_NUM"]);
+
+    with_env(&[("EDGE_OPT_STR", "")], || {
+        let config = OptionalConfig::from_env().expect("should load");
+        // Empty string IS set, so should be Some("")
+        assert_eq!(config.opt_string, Some("".to_string()));
+        assert_eq!(config.opt_number, None);
+    })
+}
+
+#[test]
+#[serial]
+fn test_optional_number_parse_error() {
+    cleanup_vars(&["EDGE_OPT_STR", "EDGE_OPT_NUM"]);
+
+    with_env(&[("EDGE_OPT_NUM", "not_a_number")], || {
+        let result = OptionalConfig::from_env();
+        assert!(result.is_err(), "Invalid optional number should fail");
+    })
+}
+
+// ============================================================================
+// Default Value Edge Cases
+// ============================================================================
+
+#[derive(EnvConfig)]
+struct DefaultEdgeConfig {
+    #[env(var = "EDGE_DEF_EMPTY", default = "")]
+    empty_default: String,
+
+    #[env(var = "EDGE_DEF_SPACE", default = "   ")]
+    space_default: String,
+
+    #[env(var = "EDGE_DEF_ZERO", default = "0")]
+    zero_default: u32,
+}
+
+#[test]
+#[serial]
+fn test_default_empty_string() {
+    cleanup_vars(&["EDGE_DEF_EMPTY", "EDGE_DEF_SPACE", "EDGE_DEF_ZERO"]);
+
+    let config = DefaultEdgeConfig::from_env().expect("should use defaults");
+    assert_eq!(config.empty_default, "");
+}
+
+#[test]
+#[serial]
+fn test_default_whitespace() {
+    cleanup_vars(&["EDGE_DEF_EMPTY", "EDGE_DEF_SPACE", "EDGE_DEF_ZERO"]);
+
+    let config = DefaultEdgeConfig::from_env().expect("should use defaults");
+    assert_eq!(config.space_default, "   ");
+}
+
+#[test]
+#[serial]
+fn test_default_zero() {
+    cleanup_vars(&["EDGE_DEF_EMPTY", "EDGE_DEF_SPACE", "EDGE_DEF_ZERO"]);
+
+    let config = DefaultEdgeConfig::from_env().expect("should use defaults");
+    assert_eq!(config.zero_default, 0);
+}
+
+// ============================================================================
+// Error Accumulation Edge Cases
+// ============================================================================
+
+#[derive(EnvConfig)]
+struct MultiErrorConfig {
+    #[env(var = "MULTI_REQ1")]
+    req1: String,
+
+    #[env(var = "MULTI_REQ2")]
+    req2: String,
+
+    #[env(var = "MULTI_REQ3")]
+    req3: String,
+
+    #[env(var = "MULTI_NUM")]
+    num: u32,
+}
+
+#[test]
+#[serial]
+fn test_accumulates_all_missing_errors() {
+    cleanup_vars(&["MULTI_REQ1", "MULTI_REQ2", "MULTI_REQ3", "MULTI_NUM"]);
+
+    let result = MultiErrorConfig::from_env();
+    assert!(result.is_err());
+
+    match result.unwrap_err() {
+        procenv::Error::Multiple { errors } => {
+            assert_eq!(errors.len(), 4, "Should have 4 missing errors");
+        }
+        other => panic!("Expected Multiple error, got: {:?}", other),
+    }
+}
+
+#[test]
+#[serial]
+fn test_accumulates_mixed_errors() {
+    cleanup_vars(&["MULTI_REQ1", "MULTI_REQ2", "MULTI_REQ3", "MULTI_NUM"]);
+
+    // Set some but with parse error
+    with_env(
+        &[
+            ("MULTI_REQ1", "ok"),
+            // MULTI_REQ2 and MULTI_REQ3 missing
+            ("MULTI_NUM", "not_a_number"),
+        ],
+        || {
+            let result = MultiErrorConfig::from_env();
+            assert!(result.is_err());
+
+            match result.unwrap_err() {
+                procenv::Error::Multiple { errors } => {
+                    // 2 missing + 1 parse error = 3 errors
+                    assert_eq!(errors.len(), 3, "Should have 3 errors");
+                }
+                other => panic!("Expected Multiple error, got: {:?}", other),
+            }
+        },
+    )
+}
+
+#[test]
+#[serial]
+fn test_single_error_not_wrapped_in_multiple() {
+    cleanup_vars(&["MULTI_REQ1", "MULTI_REQ2", "MULTI_REQ3", "MULTI_NUM"]);
+
+    with_env(
+        &[
+            ("MULTI_REQ1", "ok"),
+            ("MULTI_REQ2", "ok"),
+            ("MULTI_REQ3", "ok"),
+            ("MULTI_NUM", "not_a_number"),
+        ],
+        || {
+            let result = MultiErrorConfig::from_env();
+            assert!(result.is_err());
+
+            match result.unwrap_err() {
+                procenv::Error::Parse { .. } => {
+                    // Good - single error not wrapped
+                }
+                other => panic!("Expected Parse error, got: {:?}", other),
+            }
+        },
+    )
+}
+
+// ============================================================================
+// Nested Config Edge Cases
+// ============================================================================
+
+#[derive(EnvConfig)]
+struct InnerDbConfig {
+    #[env(var = "DB_HOST", default = "localhost")]
+    host: String,
+
+    #[env(var = "DB_PORT", default = "5432")]
+    port: u16,
+}
+
+#[derive(EnvConfig)]
+#[env_config(prefix = "APP_")]
+struct OuterNestedConfig {
+    #[env(var = "NAME")]
+    name: String,
+
+    #[env(flatten)]
+    database: InnerDbConfig,
+}
+
+#[test]
+#[serial]
+fn test_nested_uses_defaults() {
+    cleanup_vars(&["APP_NAME", "DB_HOST", "DB_PORT"]);
+
+    with_env(&[("APP_NAME", "myapp")], || {
+        let config = OuterNestedConfig::from_env().expect("should use nested defaults");
+        assert_eq!(config.name, "myapp");
+        assert_eq!(config.database.host, "localhost");
+        assert_eq!(config.database.port, 5432);
+    })
+}
+
+#[test]
+#[serial]
+fn test_nested_can_override() {
+    cleanup_vars(&["APP_NAME", "DB_HOST", "DB_PORT"]);
+
+    with_env(
+        &[
+            ("APP_NAME", "myapp"),
+            ("DB_HOST", "db.example.com"),
+            ("DB_PORT", "3306"),
+        ],
+        || {
+            let config = OuterNestedConfig::from_env().expect("should load nested");
+            assert_eq!(config.name, "myapp");
+            assert_eq!(config.database.host, "db.example.com");
+            assert_eq!(config.database.port, 3306);
+        },
+    )
+}
+
+// ============================================================================
+// Very Long Values
+// ============================================================================
+
+#[test]
+#[serial]
+fn test_very_long_value() {
+    let long_value = "x".repeat(100_000);
+    with_env(&[("EDGE_SPECIAL", &long_value)], || {
+        let config = SpecialCharsConfig::from_env().expect("long value should work");
+        assert_eq!(config.value.len(), 100_000);
+    })
+}
+
+// ============================================================================
+// Source Attribution Edge Cases
+// ============================================================================
+
+#[derive(EnvConfig)]
+struct SourceAttrConfig {
+    #[env(var = "SRC_REQ")]
+    required: String,
+
+    #[env(var = "SRC_DEF", default = "default_value")]
+    with_default: String,
+
+    #[env(var = "SRC_OPT", optional)]
+    optional: Option<String>,
+}
+
+#[test]
+#[serial]
+fn test_source_attribution_for_all_types() {
+    cleanup_vars(&["SRC_REQ", "SRC_DEF", "SRC_OPT"]);
+
+    with_env(&[("SRC_REQ", "from_env")], || {
+        let (config, sources) =
+            SourceAttrConfig::from_env_with_sources().expect("should load with sources");
+
+        // Required from env
+        let req_src = sources
+            .get("required")
+            .expect("should have required source");
+        assert!(
+            matches!(req_src.source, procenv::Source::Environment),
+            "required should be from Environment"
+        );
+
+        // Default used
+        let def_src = sources
+            .get("with_default")
+            .expect("should have with_default source");
+        assert!(
+            matches!(def_src.source, procenv::Source::Default),
+            "with_default should be from Default"
+        );
+
+        // Optional not set
+        let opt_src = sources
+            .get("optional")
+            .expect("should have optional source");
+        assert!(
+            matches!(opt_src.source, procenv::Source::NotSet),
+            "optional should be NotSet"
+        );
+
+        assert_eq!(config.required, "from_env");
+        assert_eq!(config.with_default, "default_value");
+        assert!(config.optional.is_none());
+    })
+}
