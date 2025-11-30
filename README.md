@@ -29,13 +29,13 @@ This is a learning project exploring what's possible when you combine proc-macro
 
 ## Unique Features
 
-| Feature                      | Description                                                      |
-| ---------------------------- | ---------------------------------------------------------------- |
-| **Error Accumulation**       | Shows ALL config errors at once—no more fix-one-run-again cycles |
-| **miette Diagnostics**       | Error codes, help text, and source spans in file configs         |
-| **Built-in CLI Integration** | Generates clap arguments from attributes                         |
-| **.env.example Generation**  | Auto-generate documentation for your config                      |
-| **Secret Masking**           | Sensitive values hidden in Debug output and error messages       |
+| Feature                      | Description                                                            |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| **Error Accumulation**       | Shows ALL config errors at once—no more fix-one-run-again cycles       |
+| **miette Diagnostics**       | Error codes, help text, and source spans in file configs               |
+| **Built-in CLI Integration** | Generates clap arguments from attributes                               |
+| **.env.example Generation**  | Auto-generate documentation for your config                            |
+| **Secret Masking**           | Two-tier protection: structural prevention in errors + runtime masking |
 
 ## Requirements
 
@@ -72,11 +72,14 @@ fn main() -> Result<(), procenv::Error> {
 
 ```toml
 [dependencies]
-# Default features include: dotenv, secrecy, clap, file-all (toml/yaml/json)
+# Default: just dotenv support (lightweight)
 procenv = "0.1"
 
-# Minimal (no default features)
-procenv = { version = "0.1", default-features = false }
+# Common setup: env + files + CLI
+procenv = { version = "0.1", features = ["file-all", "clap"] }
+
+# Full features (everything)
+procenv = { version = "0.1", features = ["full"] }
 
 # With validation support
 procenv = { version = "0.1", features = ["validator"] }
@@ -84,26 +87,26 @@ procenv = { version = "0.1", features = ["validator"] }
 
 ### Feature Flags
 
-Default features: `secrecy`, `dotenv`, `file-all`, `clap`
+Default features: `dotenv` only (lightweight by default)
 
-| Feature     | Default   | Description                                         |
-| ----------- | --------- | --------------------------------------------------- |
-| `secrecy`   | **Yes**   | `SecretString` support for sensitive data           |
-| `dotenv`    | **Yes**   | Load `.env` files automatically                     |
-| `clap`      | **Yes**   | CLI argument integration                            |
-| `file-all`  | **Yes**   | Meta-feature: enables `toml` + `yaml` + `json`      |
-| `file`      | via above | Base file config (JSON); enabled by format features |
-| `toml`      | via above | TOML file support (implies `file`)                  |
-| `yaml`      | via above | YAML file support (implies `file`)                  |
-| `json`      | via above | JSON file support (implies `file`)                  |
-| `validator` | No        | Validation integration with `validator` crate       |
-| `serde`     | No        | Standalone serde support (without file loading)     |
-| `tracing`   | No        | Tracing instrumentation                             |
-| `provider`  | No        | Provider trait and ConfigLoader                     |
-| `async`     | No        | Async provider support (requires `provider`)        |
-| `watch`     | No        | Hot reload with file watching                       |
-| `watch-async` | No      | Async hot reload (requires `watch` + `async`)       |
-| `full`      | No        | Enable all features                                 |
+| Feature       | Default | Description                                                                            |
+| ------------- | ------- | -------------------------------------------------------------------------------------- |
+| `dotenv`      | **Yes** | Load `.env` files automatically                                                        |
+| `secrecy`     | No      | `SecretString` for runtime secret protection (see [Secret Handling](#secret-handling)) |
+| `clap`        | No      | CLI argument integration                                                               |
+| `file-all`    | No      | Meta-feature: enables `toml` + `yaml` + `json`                                         |
+| `file`        | No      | Base file config (JSON); enabled by format features                                    |
+| `toml`        | No      | TOML file support (implies `file`)                                                     |
+| `yaml`        | No      | YAML file support (implies `file`)                                                     |
+| `json`        | No      | JSON file support (implies `file`)                                                     |
+| `validator`   | No      | Validation integration with `validator` crate                                          |
+| `serde`       | No      | Standalone serde support (without file loading)                                        |
+| `tracing`     | No      | Tracing instrumentation                                                                |
+| `provider`    | No      | Provider trait and ConfigLoader                                                        |
+| `async`       | No      | Async provider support (requires `provider`)                                           |
+| `watch`       | No      | Hot reload with file watching                                                          |
+| `watch-async` | No      | Async hot reload (requires `watch` + `async`)                                          |
+| `full`        | No      | Enable all features                                                                    |
 
 ## Attribute Reference
 
@@ -296,6 +299,77 @@ struct Config {
 }
 ```
 
+## Secret Handling
+
+procenv provides **two-tier secret protection**:
+
+### 1. Error-Time Protection (Always On)
+
+Secrets are **never stored** in error messages. When parsing fails, the value is structurally prevented from being captured:
+
+```rust
+#[derive(EnvConfig)]
+struct Config {
+    #[env(var = "API_KEY", secret)]
+    api_key: String,  // Regular String, but marked secret
+}
+
+// If API_KEY="invalid" and parsing fails:
+let err = Config::from_env().unwrap_err();
+println!("{}", err);  // Shows: got <redacted>
+
+// The secret is NOT stored - even pattern matching can't expose it
+if let Error::Parse { value, .. } = &err {
+    assert!(value.is_redacted());      // true
+    assert!(value.as_str().is_none()); // Can't access secret
+}
+```
+
+This uses `MaybeRedacted` internally - secrets are discarded immediately, not just hidden in Display/Debug.
+
+### 2. Runtime Protection (secrecy feature)
+
+For **successfully loaded** values, use `SecretString` to prevent accidental exposure:
+
+```rust
+use procenv::{EnvConfig, SecretString, ExposeSecret};
+
+#[derive(EnvConfig)]
+struct Config {
+    #[env(var = "API_KEY", secret)]
+    api_key: SecretString,  // Wrapped in SecretString
+}
+
+let config = Config::from_env()?;
+println!("{:?}", config);  // Shows: Config { api_key: [REDACTED] }
+
+// Must explicitly expose to use
+let key: &str = config.api_key.expose_secret();
+```
+
+Benefits of `SecretString`:
+
+- Debug shows `[REDACTED]`
+- Memory is zeroed on drop (Zeroize)
+- Requires explicit `.expose_secret()` call
+
+### When to Use What
+
+| Scenario                          | `secret` attribute | `SecretString` type |
+| --------------------------------- | ------------------ | ------------------- |
+| Prevent leaks in error messages   | ✅ Required        | Not needed          |
+| Prevent leaks in Debug output     | ✅ Helps           | ✅ Required         |
+| Prevent accidental logging        | Partial            | ✅ Required         |
+| Memory zeroing on drop            | ❌                 | ✅ Required         |
+| API that requires explicit access | ❌                 | ✅ Required         |
+
+**Recommendation:** Use both for maximum protection:
+
+```rust
+#[env(var = "API_KEY", secret)]  // Protects error messages
+api_key: SecretString,            // Protects runtime value
+```
+
 ## Validation
 
 Combine environment loading with runtime validation using the `validator` crate:
@@ -472,6 +546,7 @@ handle.stop();
 ```
 
 **Key features:**
+
 - **Debouncing** - Handles rapid file saves (default: 100ms)
 - **Error resilience** - Keeps previous valid config on reload error
 - **Thread-safe** - Uses `Arc<RwLock<T>>` for concurrent access
@@ -515,17 +590,18 @@ Run the example: `cargo run --example hot_reload --features watch`
 
 Benchmarks on Linux (AMD Ryzen, divan):
 
-| Scenario                  | Time     | Notes                          |
-| ------------------------- | -------- | ------------------------------ |
-| Baseline `std::env::var`  | ~145 ns  | Single lookup + parse          |
-| Small config (3 fields)   | ~478 ns  | ~3x baseline, minimal overhead |
-| Medium config (6 fields)  | ~1.8 µs  | Linear scaling                 |
-| Large config (30 fields)  | ~15 µs   | ~500 ns/field                  |
-| Nested config (4 levels)  | ~1.3 µs  | Flatten has no overhead        |
-| With source tracking      | ~2x      | `from_env_with_sources()`      |
-| Secret field handling     | ~555 ns  | Negligible SecretString cost   |
+| Scenario                 | Time    | Notes                          |
+| ------------------------ | ------- | ------------------------------ |
+| Baseline `std::env::var` | ~145 ns | Single lookup + parse          |
+| Small config (3 fields)  | ~478 ns | ~3x baseline, minimal overhead |
+| Medium config (6 fields) | ~1.8 µs | Linear scaling                 |
+| Large config (30 fields) | ~15 µs  | ~500 ns/field                  |
+| Nested config (4 levels) | ~1.3 µs | Flatten has no overhead        |
+| With source tracking     | ~2x     | `from_env_with_sources()`      |
+| Secret field handling    | ~555 ns | Negligible SecretString cost   |
 
 **Key takeaways:**
+
 - ~500 ns per field for env var lookup + parsing
 - Source attribution doubles cost (still <35 µs for 30 fields)
 - Nested/flattened configs scale linearly
@@ -601,15 +677,17 @@ procenv/
 ## Running Tests
 
 ```bash
-# Standard test runner
-cargo test
-
-# Nextest (faster, parallel)
+# Default features (dotenv only) - 186 tests
 cargo nextest run
 
-# Run examples
+# All features - 300 tests
+cargo nextest run --all-features
+
+# Run examples (some require features)
 cargo run --example basic
 cargo run --example source_attribution
+cargo run --example file_config --features file-all
+cargo run --example hot_reload --features watch
 ```
 
 ## AI-Assisted Development

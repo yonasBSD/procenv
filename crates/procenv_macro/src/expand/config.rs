@@ -448,6 +448,7 @@ pub fn generate_config_defaults_impl(
         .collect();
 
     quote! {
+        #[cfg(feature = "file")]
         impl #impl_generics #struct_name #type_generics #where_clause {
             /// Returns default values for this config as a JSON object.
             #[doc(hidden)]

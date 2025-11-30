@@ -117,11 +117,7 @@ impl FieldGenerator for DefaultField {
                     std::result::Result::Err(e) => {
                         __errors.push(::procenv::Error::parse(
                             #env_var,
-                            if #secret {
-                                "[REDACTED]".to_string()
-                            } else {
-                                val
-                            },
+                            val,
                             #secret,
                             std::any::type_name::<#ty>(),
                             std::boxed::Box::new(e),
@@ -205,7 +201,7 @@ impl FieldGenerator for DefaultField {
                     std::result::Result::Err(e) => {
                         __errors.push(::procenv::Error::parse(
                             &#effective_var_ident,
-                            if #secret { "[REDACTED]".to_string() } else { val },
+                            val,
                             #secret,
                             std::any::type_name::<#ty>(),
                             std::boxed::Box::new(e),
@@ -253,11 +249,7 @@ impl FieldGenerator for DefaultField {
                         std::result::Result::Err(e) => {
                             __errors.push(::procenv::Error::parse(
                                 &#effective_var_ident,
-                                if #secret {
-                                    "[REDACTED]".to_string()
-                                } else {
-                                    val
-                                },
+                                val,
                                 #secret,
                                 std::any::type_name::<#ty>(),
                                 std::boxed::Box::new(e),
@@ -394,11 +386,7 @@ impl FieldGenerator for DefaultField {
                     std::result::Result::Err(e) => {
                         __errors.push(::procenv::Error::parse(
                             #env_var,
-                            if #secret {
-                                "[REDACTED]".to_string()
-                            } else {
-                                val
-                            },
+                            val,
                             #secret,
                             concat!(#format_name, " data"),
                             std::boxed::Box::new(e),

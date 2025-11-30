@@ -57,6 +57,91 @@ use crate::file;
 #[cfg(feature = "validator")]
 use crate::validation::ValidationFieldError;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MaybeRedacted type for secure secret handling
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A value that may be redacted for secrets.
+///
+/// When a field is marked as secret, the actual value is never stored.
+/// This prevents accidental leakage through pattern matching, serialization,
+/// or programmatic access to error fields.
+///
+/// # Security
+///
+/// Unlike simple Display/Debug masking, this type structurally prevents
+/// secret storage. Pattern matching on `Error::Parse { value, .. }` cannot
+/// expose secrets because they are never stored in the first place.
+///
+/// # Example
+///
+/// ```rust
+/// use procenv::MaybeRedacted;
+///
+/// // Non-secret value - stored and accessible
+/// let plain = MaybeRedacted::new("visible", false);
+/// assert_eq!(plain.as_str(), Some("visible"));
+///
+/// // Secret value - never stored
+/// let secret = MaybeRedacted::new("password123", true);
+/// assert_eq!(secret.as_str(), None);
+/// assert!(secret.is_redacted());
+/// ```
+#[derive(Clone)]
+pub enum MaybeRedacted {
+    /// The actual value (for non-secret fields).
+    Plain(String),
+    /// Placeholder for secret values - actual value is never stored.
+    Redacted,
+}
+
+impl MaybeRedacted {
+    /// Create a new MaybeRedacted value.
+    ///
+    /// If `is_secret` is true, the value is discarded and replaced with `Redacted`.
+    /// The original value is never stored.
+    pub fn new(value: impl Into<String>, is_secret: bool) -> Self {
+        if is_secret {
+            MaybeRedacted::Redacted
+        } else {
+            MaybeRedacted::Plain(value.into())
+        }
+    }
+
+    /// Get the value if it's not redacted.
+    ///
+    /// Returns `None` for secret values, ensuring they cannot be accidentally exposed.
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            MaybeRedacted::Plain(s) => Some(s),
+            MaybeRedacted::Redacted => None,
+        }
+    }
+
+    /// Check if the value is redacted (was marked as secret).
+    pub fn is_redacted(&self) -> bool {
+        matches!(self, MaybeRedacted::Redacted)
+    }
+}
+
+impl Debug for MaybeRedacted {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            MaybeRedacted::Plain(s) => write!(f, "{:?}", s),
+            MaybeRedacted::Redacted => write!(f, "<redacted>"),
+        }
+    }
+}
+
+impl Display for MaybeRedacted {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            MaybeRedacted::Plain(s) => write!(f, "{:?}", s),
+            MaybeRedacted::Redacted => write!(f, "<redacted>"),
+        }
+    }
+}
+
 /// Errors that can occur when loading configuration from environment variables.
 ///
 /// This enum represents all possible failure modes when loading configuration.
@@ -138,10 +223,11 @@ pub enum Error {
         var: String,
 
         /// The raw string value that failed to parse.
-        value: String,
-
-        /// Whether this field is marked as secret.
-        secret: bool,
+        ///
+        /// For secret fields, this is always [`MaybeRedacted::Redacted`] - the actual
+        /// value is never stored, preventing accidental exposure through pattern
+        /// matching or serialization.
+        value: MaybeRedacted,
 
         /// The expected type name (for diagnostic messages).
         expected_type: String,
@@ -305,23 +391,15 @@ impl Display for Error {
             Error::Parse {
                 var,
                 value,
-                secret,
                 expected_type,
                 ..
             } => {
-                if *secret {
-                    write!(
-                        f,
-                        "failed to parse {}: expected {}, got <redacted>",
-                        var, expected_type
-                    )
-                } else {
-                    write!(
-                        f,
-                        "failed to parse {}: expected {}, got {:?}",
-                        var, expected_type, value
-                    )
-                }
+                // MaybeRedacted's Display handles redaction automatically
+                write!(
+                    f,
+                    "failed to parse {}: expected {}, got {}",
+                    var, expected_type, value
+                )
             }
 
             Error::Multiple { errors } => {
@@ -388,22 +466,14 @@ impl Debug for Error {
             Error::Parse {
                 var,
                 value,
-                secret,
                 expected_type,
                 help,
                 source,
             } => {
-                let mut debug = f.debug_struct("Parse");
-                debug.field("var", var);
-
-                if *secret {
-                    debug.field("value", &"<redacted>");
-                } else {
-                    debug.field("value", value);
-                }
-
-                debug
-                    .field("secret", secret)
+                // MaybeRedacted's Debug handles redaction automatically
+                f.debug_struct("Parse")
+                    .field("var", var)
+                    .field("value", value)
                     .field("expected_type", expected_type)
                     .field("help", help)
                     .field("source", source)
@@ -507,6 +577,13 @@ impl Error {
     ///
     /// Accepts any type that can be converted to String for var and expected_type,
     /// allowing runtime-constructed var names and type names.
+    ///
+    /// # Security
+    ///
+    /// When `secret` is `true`, the value is immediately discarded and replaced
+    /// with [`MaybeRedacted::Redacted`]. The actual secret value is never stored
+    /// in the error, preventing accidental leakage through pattern matching,
+    /// serialization, or logging.
     pub fn parse(
         var: impl Into<String>,
         value: impl Into<String>,
@@ -515,13 +592,11 @@ impl Error {
         source: Box<dyn StdError + Send + Sync>,
     ) -> Self {
         let var = var.into();
-        let value = value.into();
         let expected_type = expected_type.into();
         let help = format!("expected a valid {}", expected_type);
         Error::Parse {
             var,
-            value,
-            secret,
+            value: MaybeRedacted::new(value, secret),
             expected_type,
             help,
             source,
@@ -613,6 +688,12 @@ mod tests {
         assert!(display.contains("PORT"));
         assert!(display.contains("invalid"));
         assert!(display.contains("u16"));
+
+        // Verify value is accessible for non-secrets
+        if let Error::Parse { value, .. } = &err {
+            assert_eq!(value.as_str(), Some("invalid"));
+            assert!(!value.is_redacted());
+        }
     }
 
     #[test]
@@ -628,6 +709,65 @@ mod tests {
         assert!(display.contains("API_KEY"));
         assert!(display.contains("<redacted>"));
         assert!(!display.contains("secret-value"));
+
+        // CRITICAL: Verify secret is NOT stored (security fix)
+        if let Error::Parse { value, .. } = &err {
+            assert!(value.is_redacted());
+            assert_eq!(value.as_str(), None);
+        }
+    }
+
+    #[test]
+    fn test_secret_never_stored_in_error() {
+        // This test verifies the security fix: secrets should NEVER be stored
+        let secret_value = "super-secret-password-12345";
+        let err = Error::parse(
+            "SECRET_KEY",
+            secret_value.to_string(),
+            true,
+            "String",
+            Box::new(std::fmt::Error),
+        );
+
+        // Pattern matching should not expose the secret
+        if let Error::Parse { value, .. } = &err {
+            assert!(
+                value.as_str().is_none(),
+                "Secret value should not be accessible"
+            );
+            assert!(value.is_redacted(), "Value should be marked as redacted");
+        }
+
+        // Debug should not contain the secret
+        let debug = format!("{:?}", err);
+        assert!(
+            !debug.contains(secret_value),
+            "Debug should not contain secret"
+        );
+
+        // Display should not contain the secret
+        let display = format!("{}", err);
+        assert!(
+            !display.contains(secret_value),
+            "Display should not contain secret"
+        );
+    }
+
+    #[test]
+    fn test_maybe_redacted_plain() {
+        let plain = MaybeRedacted::new("visible", false);
+        assert_eq!(plain.as_str(), Some("visible"));
+        assert!(!plain.is_redacted());
+        assert!(format!("{:?}", plain).contains("visible"));
+    }
+
+    #[test]
+    fn test_maybe_redacted_secret() {
+        let secret = MaybeRedacted::new("hidden", true);
+        assert_eq!(secret.as_str(), None);
+        assert!(secret.is_redacted());
+        assert!(!format!("{:?}", secret).contains("hidden"));
+        assert!(format!("{:?}", secret).contains("<redacted>"));
     }
 
     #[test]

@@ -775,6 +775,7 @@ mod serde_format_tests {
 // from_config() Defaults Tests (Phase A.0 - from_config semantic parity)
 // ============================================================================
 
+#[cfg(feature = "file")]
 mod from_config_tests {
     use procenv::EnvConfig;
     use serde::Deserialize;

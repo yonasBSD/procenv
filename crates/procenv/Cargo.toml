@@ -11,7 +11,7 @@ keywords = ["env", "config", "macro", "derive", "environment"]
 categories = ["config", "development-tools::procedural-macro-helpers"]
 
 [features]
-default = ["secrecy", "dotenv", "file-all", "clap"]
+default = ["dotenv"]
 # Enable secrecy::Secret<T> support for secret fields
 secrecy = ["dep:secrecy"]
 # Enable clap integration for CLI + env config
@@ -57,7 +57,7 @@ full = [
 ]
 
 [dependencies]
-procenv_macro = { version = "0.1.6", path = "../procenv_macro" }
+procenv_macro = { version = "0.1.7", path = "../procenv_macro" }
 miette = { workspace = true }
 thiserror = { workspace = true }
 
@@ -109,6 +109,18 @@ required-features = ["provider"]
 [[example]]
 name = "hot_reload"
 required-features = ["watch"]
+
+[[example]]
+name = "secrecy_example"
+required-features = ["secrecy"]
+
+[[example]]
+name = "test_type_mismatch"
+required-features = ["file-all"]
+
+[[example]]
+name = "file_config_sketch"
+required-features = ["toml"]
 
 [[bench]]
 name = "config_loading"

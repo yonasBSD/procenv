@@ -22,9 +22,6 @@
 //! ```
 
 use std::collections::HashMap;
-use std::marker::PhantomData;
-
-use serde::de::DeserializeOwned;
 
 use crate::provider::{Provider, ProviderError, ProviderSource, ProviderValue};
 use crate::{ConfigSources, Error, Source, ValueSource};

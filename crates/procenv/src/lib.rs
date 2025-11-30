@@ -127,7 +127,7 @@ pub mod diagnostic_codes;
 
 // Error types
 mod error;
-pub use error::Error;
+pub use error::{Error, MaybeRedacted};
 
 // Source attribution types
 mod source;

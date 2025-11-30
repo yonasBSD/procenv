@@ -244,11 +244,7 @@ fn generate_cli_aware_loader(field: &dyn FieldGenerator) -> QuoteStream {
                     std::result::Result::Err(e) => {
                         __errors.push(::procenv::Error::parse(
                             #cli_arg_name,
-                            if #secret {
-                                "[REDACTED]".to_string()
-                            } else {
-                                cli_val.clone()
-                            },
+                            cli_val.clone(),
                             #secret,
                             #format_name,
                             std::boxed::Box::new(e),
