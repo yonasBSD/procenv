@@ -407,6 +407,28 @@ Run the example: `cargo run --example custom_provider --features provider`
 | Runtime value access    | No           | Yes        | Yes        | No     |
 | Hot reload              | No           | No         | Partial    | No     |
 
+## Performance
+
+Benchmarks on Linux (AMD Ryzen, divan):
+
+| Scenario                  | Time     | Notes                          |
+| ------------------------- | -------- | ------------------------------ |
+| Baseline `std::env::var`  | ~145 ns  | Single lookup + parse          |
+| Small config (3 fields)   | ~478 ns  | ~3x baseline, minimal overhead |
+| Medium config (6 fields)  | ~1.8 µs  | Linear scaling                 |
+| Large config (30 fields)  | ~15 µs   | ~500 ns/field                  |
+| Nested config (4 levels)  | ~1.3 µs  | Flatten has no overhead        |
+| With source tracking      | ~2x      | `from_env_with_sources()`      |
+| Secret field handling     | ~555 ns  | Negligible SecretString cost   |
+
+**Key takeaways:**
+- ~500 ns per field for env var lookup + parsing
+- Source attribution doubles cost (still <35 µs for 30 fields)
+- Nested/flattened configs scale linearly
+- Secret masking adds minimal overhead
+
+Run benchmarks: `cargo bench --bench config_loading`
+
 ## Known Limitations
 
 - **All-or-nothing loading** - No runtime access to individual config values (Phase D planned)

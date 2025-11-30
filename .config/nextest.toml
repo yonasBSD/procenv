@@ -1,9 +1,58 @@
 # Nextest configuration
 # See: https://nexte.st/docs/configuration/
 
+[store]
+dir = "target/nextest"
+
+# =============================================================================
+# Default Profile
+# =============================================================================
+
+[profile.default]
+# Fail fast: stop on first failure during local development
+fail-fast = true
+# Show stdout/stderr only for failing tests
+failure-output = "immediate"
+success-output = "never"
+# Status updates
+status-level = "pass"
+# Warn if a test takes longer than this
+slow-timeout = { period = "30s", terminate-after = 3 }
+
+[profile.default.junit]
+path = "results.xml"
+
+# =============================================================================
+# CI Profile (use with: cargo nextest run --profile ci)
+# =============================================================================
+
+[profile.ci]
+fail-fast = false              # Run all tests even if some fail
+retries = 2                    # Retry flaky tests
+failure-output = "immediate-final"
+status-level = "all"
+slow-timeout = { period = "60s", terminate-after = 2 }
+
+[profile.ci.junit]
+path = "junit.xml"
+store-success-output = true
+store-failure-output = true
+
+# =============================================================================
+# Test Groups (for serialization)
+# =============================================================================
+
 [test-groups.serial-integration]
 # Run these tests with max 1 thread to avoid file/env race conditions
 max-threads = 1
+
+[test-groups.serial-env]
+# Tests that modify environment variables
+max-threads = 1
+
+# =============================================================================
+# Default Profile Overrides
+# =============================================================================
 
 [[profile.default.overrides]]
 # Tests in from_config_tests module share a temp file and env vars
@@ -14,3 +63,33 @@ test-group = "serial-integration"
 # Malformed file tests share /tmp/procenv_malformed_tests/ directory
 filter = "binary(malformed_files)"
 test-group = "serial-integration"
+
+[[profile.default.overrides]]
+# Tests that manipulate env vars need serialization
+filter = "test(/env/)"
+test-group = "serial-env"
+
+[[profile.default.overrides]]
+# Trybuild tests are slow - give them more time
+filter = "test(/trybuild/)"
+slow-timeout = { period = "120s", terminate-after = 2 }
+
+# =============================================================================
+# CI Profile Overrides (inherit from default, adjust as needed)
+# =============================================================================
+
+[[profile.ci.overrides]]
+filter = "test(/from_config_tests/)"
+test-group = "serial-integration"
+
+[[profile.ci.overrides]]
+filter = "binary(malformed_files)"
+test-group = "serial-integration"
+
+[[profile.ci.overrides]]
+filter = "test(/env/)"
+test-group = "serial-env"
+
+[[profile.ci.overrides]]
+filter = "test(/trybuild/)"
+slow-timeout = { period = "180s", terminate-after = 2 }

@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 rust-version = "1.91.1"
 
@@ -29,3 +29,63 @@ toml = "0.9.8"
 tokio = { version = "1.48.0", features = ["rt"] }
 futures = { version = "0.3.31" }
 divan = { version = "0.1.21" }
+num-traits = { version = "0.2.19" }
+
+# =============================================================================
+# Build Profiles
+# =============================================================================
+
+# Development profile
+[profile.dev]
+opt-level = 0
+debug = true
+debug-assertions = true
+overflow-checks = true
+lto = false
+panic = "unwind"
+incremental = true
+codegen-units = 256
+
+# Optimize dependencies even in dev mode for faster runtime
+# (dependencies rarely change, so this doesn't hurt incremental builds)
+[profile.dev.package."*"]
+opt-level = 2
+
+# Release profile: optimize for runtime performance
+[profile.release]
+opt-level = 3
+debug = false
+debug-assertions = false
+overflow-checks = false
+lto = "thin"
+panic = "abort"
+incremental = false
+codegen-units = 1
+strip = "symbols"
+
+# Test profile: Inherit from dev but some optimizations
+# Helps tests that do heavy computation run faster
+[profile.test]
+inherits = "dev"
+opt-level = 1
+debug = true
+
+# Bench profile: maximum performance for accurate benchmarks
+[profile.bench]
+inherits = "release"
+debug = false
+lto = "fat"          # Maximum LTO for benchmarks
+codegen-units = 1
+
+# Proc-macro crate optimization (faster macro expansion during dev)
+[profile.dev.package.procenv_macro]
+opt-level = 2
+
+[profile.dev.package.syn]
+opt-level = 2
+
+[profile.dev.package.quote]
+opt-level = 2
+
+[profile.dev.package.proc-macro2]
+opt-level = 2

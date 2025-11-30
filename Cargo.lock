@@ -810,13 +810,14 @@ dependencies = [
 
 [[package]]
 name = "procenv"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "clap",
  "divan",
  "dotenvy",
  "futures",
  "miette",
+ "num-traits",
  "procenv_macro",
  "secrecy",
  "serde",
@@ -834,7 +835,7 @@ dependencies = [
 
 [[package]]
 name = "procenv_macro"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "proc-macro2",
  "quote",

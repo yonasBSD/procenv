@@ -53,7 +53,7 @@ full = [
 ]
 
 [dependencies]
-procenv_macro = { version = "0.1.5", path = "../procenv_macro" }
+procenv_macro = { version = "0.1.6", path = "../procenv_macro" }
 miette = { workspace = true }
 thiserror = { workspace = true }
 
@@ -72,6 +72,7 @@ tokio = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 
 validator = { workspace = true, optional = true }
+num-traits = { workspace = true }
 
 [dev-dependencies]
 trybuild = "1.0.114"
