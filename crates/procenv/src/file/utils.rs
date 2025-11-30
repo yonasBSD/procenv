@@ -1,4 +1,48 @@
 //! File parsing and value manipulation utilities.
+//!
+//! This module provides the [`FileUtils`] struct with static methods for:
+//!
+//! - **Parsing** - Reading and parsing configuration files (JSON, TOML, YAML)
+//! - **Merging** - Deep merging JSON values with proper object recursion
+//! - **Coercion** - Converting string values to appropriate JSON types
+//! - **Error Location** - Finding field offsets for precise error reporting
+//!
+//! # Parsing Files
+//!
+//! ```rust,ignore
+//! use procenv::file::{FileUtils, FileFormat};
+//! use std::path::Path;
+//!
+//! // Parse with automatic format detection
+//! let value = FileUtils::parse_file(Path::new("config.toml"), true)?;
+//!
+//! // Parse with explicit format
+//! let json = FileUtils::parse_str(r#"{"port": 8080}"#, FileFormat::Json)?;
+//! ```
+//!
+//! # Deep Merging
+//!
+//! Objects are merged recursively, with overlay values taking precedence:
+//!
+//! ```rust,ignore
+//! use procenv::file::FileUtils;
+//! use serde_json::json;
+//!
+//! let mut base = json!({"db": {"host": "localhost", "port": 5432}});
+//! let overlay = json!({"db": {"port": 5433}});
+//!
+//! FileUtils::deep_merge(&mut base, overlay);
+//! // Result: {"db": {"host": "localhost", "port": 5433}}
+//! ```
+//!
+//! # Value Coercion
+//!
+//! Environment variables are coerced to appropriate JSON types:
+//!
+//! - `"true"`/`"false"` → `Bool`
+//! - `"42"` → `Number` (integer)
+//! - `"3.14"` → `Number` (float, only if contains `.`)
+//! - Everything else → `String`
 
 use std::path::Path;
 
@@ -115,44 +159,26 @@ impl FileUtils {
 
         match format {
             FileFormat::Json => {
-                let patterns = vec![
-                    format!("\"{leaf_field}\":"),
-                    format!("\"{leaf_field}\" :"),
-                ];
-                Self::find_value_with_patterns(
-                    search_content,
-                    base_offset,
-                    &patterns,
-                    |c: char| !c.is_whitespace(),
-                )
+                let patterns = vec![format!("\"{leaf_field}\":"), format!("\"{leaf_field}\" :")];
+                Self::find_value_with_patterns(search_content, base_offset, &patterns, |c: char| {
+                    !c.is_whitespace()
+                })
             }
 
             #[cfg(feature = "toml")]
             FileFormat::Toml => {
-                let patterns = vec![
-                    format!("{leaf_field} ="),
-                    format!("{leaf_field}="),
-                ];
-                Self::find_value_with_patterns(
-                    search_content,
-                    base_offset,
-                    &patterns,
-                    |c: char| !c.is_whitespace(),
-                )
+                let patterns = vec![format!("{leaf_field} ="), format!("{leaf_field}=")];
+                Self::find_value_with_patterns(search_content, base_offset, &patterns, |c: char| {
+                    !c.is_whitespace()
+                })
             }
 
             #[cfg(feature = "yaml")]
             FileFormat::Yaml => {
-                let patterns = vec![
-                    format!("{leaf_field}:"),
-                    format!("{leaf_field} :"),
-                ];
-                Self::find_value_with_patterns(
-                    search_content,
-                    base_offset,
-                    &patterns,
-                    |c: char| !c.is_whitespace() && c != '\n',
-                )
+                let patterns = vec![format!("{leaf_field}:"), format!("{leaf_field} :")];
+                Self::find_value_with_patterns(search_content, base_offset, &patterns, |c: char| {
+                    !c.is_whitespace() && c != '\n'
+                })
             }
         }
     }

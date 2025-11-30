@@ -1,4 +1,32 @@
 //! File format detection and representation.
+//!
+//! This module provides the [`FileFormat`] enum for representing supported
+//! configuration file formats and automatic format detection from file paths.
+//!
+//! # Supported Formats
+//!
+//! | Format | Feature | Extensions |
+//! |--------|---------|------------|
+//! | JSON | `file` (always) | `.json` |
+//! | TOML | `toml` | `.toml` |
+//! | YAML | `yaml` | `.yaml`, `.yml` |
+//!
+//! # Format Detection
+//!
+//! The format is automatically detected from the file extension when using
+//! [`FileUtils::parse_file`](super::FileUtils::parse_file) or
+//! [`ConfigBuilder::file`](super::ConfigBuilder::file).
+//!
+//! ```rust,ignore
+//! use procenv::file::FileFormat;
+//! use std::path::Path;
+//!
+//! // Automatic detection
+//! assert_eq!(FileFormat::from_path(Path::new("config.json")), Some(FileFormat::Json));
+//! assert_eq!(FileFormat::from_path(Path::new("config.toml")), Some(FileFormat::Toml));
+//! assert_eq!(FileFormat::from_path(Path::new("config.yaml")), Some(FileFormat::Yaml));
+//! assert_eq!(FileFormat::from_path(Path::new("config.txt")), None);
+//! ```
 
 use std::path::Path;
 

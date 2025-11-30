@@ -1,4 +1,48 @@
 //! File-based configuration code generation.
+//!
+//! This module generates the `from_config()` method for loading configuration
+//! from files (TOML, JSON, YAML) with environment variable overlay.
+//!
+//! # Generated Methods
+//!
+//! - [`generate_from_config_impl`] - Main `from_config()` and `from_config_with_sources()`
+//! - [`generate_config_defaults_impl`] - Internal `__config_defaults()` for nested structs
+//!
+//! # Layering Order
+//!
+//! Configuration is loaded in this priority order (lowest to highest):
+//!
+//! 1. **Macro defaults** - `#[env(default = "...")]` attributes
+//! 2. **Config files** - In order specified (later files override earlier)
+//! 3. **Environment variables** - Highest priority
+//!
+//! # Generated Code Pattern
+//!
+//! ```rust,ignore
+//! pub fn from_config() -> Result<Self, Error> {
+//!     // Load dotenv first
+//!     let _ = dotenvy::dotenv();
+//!
+//!     let mut builder = ConfigBuilder::new();
+//!
+//!     // Apply defaults from macro attributes
+//!     builder = builder.defaults_value(json!({ "port": 8080 }));
+//!
+//!     // Add config files
+//!     builder = builder.file_optional("config.toml");
+//!
+//!     // Set env prefix
+//!     builder = builder.env_prefix("APP_");
+//!
+//!     builder.build()
+//! }
+//! ```
+//!
+//! # Nested Struct Support
+//!
+//! The `__config_defaults()` method is generated for all structs to support
+//! flatten fields. It returns a JSON object with default values that can
+//! be merged into the parent's defaults.
 
 use proc_macro2::TokenStream as QuoteStream;
 use quote::quote;

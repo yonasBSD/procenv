@@ -273,8 +273,9 @@ fn test_from_args_from_basic() {
     cleanup_env(&["ARGS_HOST", "ARGS_PORT", "ARGS_DEBUG"]);
 
     // Test with CLI arguments
-    let config = ArgsTestConfig::from_args_from(["test", "--host", "example.com", "--port", "3000"])
-        .expect("should parse CLI args");
+    let config =
+        ArgsTestConfig::from_args_from(["test", "--host", "example.com", "--port", "3000"])
+            .expect("should parse CLI args");
 
     assert_eq!(config.host, "example.com");
     assert_eq!(config.port, 3000);
@@ -287,8 +288,9 @@ fn test_from_args_from_short_flags() {
     cleanup_env(&["ARGS_HOST", "ARGS_PORT", "ARGS_DEBUG"]);
 
     // Test with short flags (using -H for host since -h is reserved for help)
-    let config = ArgsTestConfig::from_args_from(["test", "-H", "short.com", "-p", "9999", "-d", "true"])
-        .expect("should parse short flags");
+    let config =
+        ArgsTestConfig::from_args_from(["test", "-H", "short.com", "-p", "9999", "-d", "true"])
+            .expect("should parse short flags");
 
     assert_eq!(config.host, "short.com");
     assert_eq!(config.port, 9999);
@@ -314,15 +316,18 @@ fn test_from_args_from_env_fallback() {
     cleanup_env(&["ARGS_HOST", "ARGS_PORT", "ARGS_DEBUG"]);
 
     // Set env vars, but provide some CLI args
-    with_env(&[("ARGS_HOST", "env-host.com"), ("ARGS_PORT", "5000")], || {
-        // CLI should override env for host, but port should come from env
-        let config = ArgsTestConfig::from_args_from(["test", "--host", "cli-host.com"])
-            .expect("should combine CLI and env");
+    with_env(
+        &[("ARGS_HOST", "env-host.com"), ("ARGS_PORT", "5000")],
+        || {
+            // CLI should override env for host, but port should come from env
+            let config = ArgsTestConfig::from_args_from(["test", "--host", "cli-host.com"])
+                .expect("should combine CLI and env");
 
-        assert_eq!(config.host, "cli-host.com"); // from CLI
-        assert_eq!(config.port, 5000); // from env
-        assert!(!config.debug); // from default
-    })
+            assert_eq!(config.host, "cli-host.com"); // from CLI
+            assert_eq!(config.port, 5000); // from env
+            assert!(!config.debug); // from default
+        },
+    )
 }
 
 #[test]
@@ -331,12 +336,9 @@ fn test_from_args_from_with_sources() {
     cleanup_env(&["ARGS_HOST", "ARGS_PORT", "ARGS_DEBUG"]);
 
     with_env(&[("ARGS_PORT", "7777")], || {
-        let (config, sources) = ArgsTestConfig::from_args_from_with_sources([
-            "test",
-            "--host",
-            "source-test.com",
-        ])
-        .expect("should parse with sources");
+        let (config, sources) =
+            ArgsTestConfig::from_args_from_with_sources(["test", "--host", "source-test.com"])
+                .expect("should parse with sources");
 
         assert_eq!(config.host, "source-test.com");
         assert_eq!(config.port, 7777);
@@ -418,9 +420,8 @@ struct ArgsRequiredConfig {
 fn test_from_args_from_required_provided() {
     cleanup_env(&["ARGSR_REQUIRED", "ARGSR_OPTIONAL"]);
 
-    let config =
-        ArgsRequiredConfig::from_args_from(["test", "--required", "my-required-value"])
-            .expect("should parse with required field");
+    let config = ArgsRequiredConfig::from_args_from(["test", "--required", "my-required-value"])
+        .expect("should parse with required field");
 
     assert_eq!(config.required_field, "my-required-value");
     assert_eq!(config.optional_field, "default");
@@ -432,8 +433,8 @@ fn test_from_args_from_required_from_env() {
     cleanup_env(&["ARGSR_REQUIRED", "ARGSR_OPTIONAL"]);
 
     with_env(&[("ARGSR_REQUIRED", "env-required")], || {
-        let config = ArgsRequiredConfig::from_args_from(["test"])
-            .expect("should get required from env");
+        let config =
+            ArgsRequiredConfig::from_args_from(["test"]).expect("should get required from env");
 
         assert_eq!(config.required_field, "env-required");
     })
@@ -446,7 +447,10 @@ fn test_from_args_from_required_missing() {
 
     let result = ArgsRequiredConfig::from_args_from(["test"]);
 
-    assert!(result.is_err(), "should fail when required field is missing");
+    assert!(
+        result.is_err(),
+        "should fail when required field is missing"
+    );
 }
 
 // ============================================================================

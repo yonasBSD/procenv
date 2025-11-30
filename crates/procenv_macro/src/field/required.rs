@@ -1,4 +1,34 @@
 //! Required field implementation.
+//!
+//! This module provides [`RequiredField`], the code generator for fields that
+//! must have a value from the environment. If the environment variable is not
+//! set, an error is recorded (but loading continues for error accumulation).
+//!
+//! # Generated Code Pattern
+//!
+//! For a required field like:
+//! ```rust,ignore
+//! #[env(var = "DATABASE_URL")]
+//! db_url: String,
+//! ```
+//!
+//! Generates:
+//! ```rust,ignore
+//! let db_url: Option<String> = match std::env::var("DATABASE_URL") {
+//!     Ok(val) => match val.parse() {
+//!         Ok(v) => Some(v),
+//!         Err(e) => { __errors.push(Error::parse(...)); None }
+//!     },
+//!     Err(VarError::NotPresent) => { __errors.push(Error::missing(...)); None }
+//!     Err(VarError::NotUnicode(_)) => { __errors.push(Error::InvalidUtf8 {...}); None }
+//! };
+//! ```
+//!
+//! # Error Behavior
+//!
+//! - **Missing** → `Error::Missing` pushed to accumulator
+//! - **Invalid UTF-8** → `Error::InvalidUtf8` pushed
+//! - **Parse failure** → `Error::Parse` pushed with type info
 
 use proc_macro2::TokenStream as QuoteStream;
 use quote::{format_ident, quote};

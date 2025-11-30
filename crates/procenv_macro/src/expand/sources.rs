@@ -1,4 +1,41 @@
 //! Source attribution code generation.
+//!
+//! This module generates the `from_env_with_sources()` method that returns
+//! both the configuration struct and information about where each value
+//! originated (environment, dotenv, profile, default, etc.).
+//!
+//! # Generated Methods
+//!
+//! - [`generate_from_env_with_sources_impl`] - Main implementation
+//!
+//! # Source Tracking
+//!
+//! For each field, the generated code determines the source:
+//!
+//! ```rust,ignore
+//! let __field_source = if from_profile {
+//!     Source::Profile(profile_name)
+//! } else if __dotenv_loaded && !__pre_dotenv_vars.contains(var) {
+//!     Source::DotenvFile(None)
+//! } else if used_default {
+//!     Source::Default
+//! } else {
+//!     Source::Environment
+//! };
+//! ```
+//!
+//! # Pre-Dotenv Tracking
+//!
+//! To distinguish environment variables from dotenv values, the code
+//! captures which variables existed before loading `.env` files:
+//!
+//! ```rust,ignore
+//! let __pre_dotenv_vars: HashSet<&str> = [/* var names */]
+//!     .iter()
+//!     .filter(|var| std::env::var(var).is_ok())
+//!     .copied()
+//!     .collect();
+//! ```
 
 use proc_macro2::TokenStream as QuoteStream;
 use quote::quote;
@@ -56,7 +93,8 @@ pub fn generate_from_env_with_sources_impl(
         .collect();
 
     // Generate assignments
-    let assignments: Vec<QuoteStream> = generators.iter().map(|g| g.generate_assignment()).collect();
+    let assignments: Vec<QuoteStream> =
+        generators.iter().map(|g| g.generate_assignment()).collect();
 
     // Check if any fields have CLI config
     let has_cli_fields = generators.iter().any(|g| g.cli_config().is_some());

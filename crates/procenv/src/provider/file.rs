@@ -1,6 +1,6 @@
 //! File-based configuration provider.
 
-use super::{priority, Provider, ProviderError, ProviderResult, ProviderSource, ProviderValue};
+use super::{Provider, ProviderError, ProviderResult, ProviderSource, ProviderValue, priority};
 use crate::Source;
 use crate::file::{ConfigBuilder, FileFormat, FileUtils, OriginTracker};
 use serde_json::Value;

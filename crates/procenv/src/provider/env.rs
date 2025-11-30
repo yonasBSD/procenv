@@ -1,6 +1,6 @@
 //! Environment variable provider.
 
-use super::{priority, Provider, ProviderResult, ProviderSource, ProviderValue};
+use super::{Provider, ProviderResult, ProviderSource, ProviderValue, priority};
 use crate::Source;
 
 /// Provider that reads configuration from environment variables.

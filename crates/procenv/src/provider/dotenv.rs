@@ -1,6 +1,6 @@
 //! Dotenv file provider.
 
-use super::{priority, Provider, ProviderResult, ProviderSource, ProviderValue};
+use super::{Provider, ProviderResult, ProviderSource, ProviderValue, priority};
 use crate::Source;
 use std::collections::HashMap;
 use std::path::PathBuf;

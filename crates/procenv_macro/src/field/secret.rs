@@ -1,4 +1,39 @@
 //! Secret field implementations (SecretString, SecretBox).
+//!
+//! This module provides code generators for fields using the `secrecy` crate's
+//! types, which provide automatic secret protection:
+//!
+//! - [`SecretStringField`] - For `SecretString` (alias for `SecretBox<str>`)
+//! - [`SecretBoxField`] - For `SecretBox<T>` with any inner type
+//!
+//! # Secrecy Integration
+//!
+//! The `secrecy` crate provides types that:
+//! - Redact values in `Debug` and `Display` output
+//! - Zeroize memory on drop (with `zeroize` feature)
+//! - Require explicit `.expose_secret()` to access the value
+//!
+//! # Generated Code Pattern
+//!
+//! For a SecretString field:
+//! ```rust,ignore
+//! #[env(var = "API_KEY")]
+//! api_key: SecretString,
+//! ```
+//!
+//! Generates:
+//! ```rust,ignore
+//! let api_key: Option<SecretString> = match std::env::var("API_KEY") {
+//!     Ok(val) => Some(SecretString::from(val)),
+//!     Err(VarError::NotPresent) => { __errors.push(Error::missing(...)); None }
+//!     // ...
+//! };
+//! ```
+//!
+//! # Automatic Secret Detection
+//!
+//! Fields with `SecretString` or `SecretBox<T>` types are automatically
+//! treated as secrets - no need to add the `secret` attribute.
 
 use proc_macro2::TokenStream as QuoteStream;
 use quote::{format_ident, quote};

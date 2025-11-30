@@ -1,4 +1,33 @@
 //! Default field implementation.
+//!
+//! This module provides [`DefaultField`], the code generator for fields that
+//! have a fallback value when the environment variable is not set.
+//!
+//! # Generated Code Pattern
+//!
+//! For a field with default like:
+//! ```rust,ignore
+//! #[env(var = "PORT", default = "8080")]
+//! port: u16,
+//! ```
+//!
+//! Generates code that:
+//! 1. Reads the environment variable
+//! 2. Falls back to `"8080"` if not present
+//! 3. Parses the value (env var or default) as `u16`
+//!
+//! # Important: Default Validation
+//!
+//! The default value is parsed at **runtime**, not compile time. If you specify
+//! `default = "invalid"` for a `u16` field, you'll get a parse error when the
+//! env var is missing and the default is used. This catches configuration
+//! mistakes early.
+//!
+//! # Error Behavior
+//!
+//! - **Missing env var** → Uses default value (no error)
+//! - **Invalid UTF-8** → `Error::InvalidUtf8` pushed
+//! - **Parse failure** → `Error::Parse` pushed (whether from env or default)
 
 use proc_macro2::TokenStream as QuoteStream;
 use quote::{format_ident, quote};

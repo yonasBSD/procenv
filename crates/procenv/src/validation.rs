@@ -2,6 +2,46 @@
 //!
 //! This module provides error types for validation failures, converting
 //! from the `validator` crate's error types to procenv's error model.
+//!
+//! # Overview
+//!
+//! When `#[env_config(validate)]` is set on a struct that also derives
+//! `validator::Validate`, the generated `from_env_validated()` method will:
+//!
+//! 1. Load all configuration values using `from_env()`
+//! 2. Run validator crate validation rules
+//! 3. Run any custom field validators specified with `#[env(validate = "fn_name")]`
+//! 4. Accumulate all validation errors into [`ValidationFieldError`] instances
+//!
+//! # Error Structure
+//!
+//! Each validation failure is represented as a [`ValidationFieldError`] containing:
+//! - `field` - The field name that failed validation
+//! - `code` - The validation rule code (e.g., "email", "range", "url")
+//! - `message` - Human-readable error message
+//! - `params` - Optional parameters from the validation rule
+//!
+//! # Example
+//!
+//! ```rust,ignore
+//! use procenv::EnvConfig;
+//! use validator::Validate;
+//!
+//! #[derive(EnvConfig, Validate)]
+//! #[env_config(validate)]
+//! struct Config {
+//!     #[env(var = "PORT", default = "8080")]
+//!     #[validate(range(min = 1, max = 65535))]
+//!     port: u16,
+//!
+//!     #[env(var = "EMAIL")]
+//!     #[validate(email)]
+//!     admin_email: String,
+//! }
+//!
+//! // Validation runs automatically after loading
+//! let config = Config::from_env_validated()?;
+//! ```
 
 use std::error::Error as StdError;
 use std::fmt::{self, Display, Formatter};

@@ -2,6 +2,49 @@
 //!
 //! This module contains the [`Error`] enum and related functionality for
 //! handling configuration errors with rich diagnostics via [`miette`].
+//!
+//! # Error Variants
+//!
+//! | Variant | When It Occurs |
+//! |---------|----------------|
+//! | [`Error::Missing`] | Required environment variable not set |
+//! | [`Error::InvalidUtf8`] | Variable contains non-UTF8 bytes |
+//! | [`Error::Parse`] | Value failed to parse as expected type |
+//! | [`Error::Multiple`] | Multiple configuration errors accumulated |
+//! | [`Error::File`] | Configuration file error (with `file` feature) |
+//! | [`Error::InvalidProfile`] | Invalid profile name specified |
+//! | [`Error::Provider`] | Custom provider operation failed |
+//! | [`Error::Validation`] | Validation constraint violated (with `validator` feature) |
+//! | [`Error::Cli`] | CLI argument parsing failed (with `clap` feature) |
+//!
+//! # Error Accumulation
+//!
+//! Unlike typical Rust error handling that fails on the first error, procenv
+//! accumulates all errors encountered during configuration loading. This allows
+//! users to see every configuration issue at once rather than fixing them one
+//! by one.
+//!
+//! ```rust,ignore
+//! match Config::from_env() {
+//!     Ok(config) => { /* use config */ }
+//!     Err(Error::Multiple { errors }) => {
+//!         // All errors reported together
+//!         for error in errors {
+//!             eprintln!("{}", error);
+//!         }
+//!     }
+//!     Err(e) => eprintln!("{}", e),
+//! }
+//! ```
+//!
+//! # Secret Masking
+//!
+//! Fields marked with `secret` have their values redacted in error messages
+//! and Debug output to prevent accidental exposure of sensitive data:
+//!
+//! ```text
+//! failed to parse API_KEY: expected String, got <redacted>
+//! ```
 
 use std::error::Error as StdError;
 use std::fmt::{self, Debug, Display, Formatter};

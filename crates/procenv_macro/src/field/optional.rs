@@ -1,4 +1,31 @@
 //! Optional field implementation.
+//!
+//! This module provides [`OptionalField`], the code generator for fields that
+//! may or may not have a value. The field type must be `Option<T>`.
+//!
+//! # Generated Code Pattern
+//!
+//! For an optional field like:
+//! ```rust,ignore
+//! #[env(var = "DEBUG_MODE", optional)]
+//! debug: Option<bool>,
+//! ```
+//!
+//! Generates code that:
+//! 1. Reads the environment variable
+//! 2. Returns `None` if not present (no error!)
+//! 3. Parses as `bool` if present
+//!
+//! # Type Validation
+//!
+//! The macro validates at compile time that optional fields use `Option<T>`.
+//! Using `optional` on a non-Option field produces a compile error.
+//!
+//! # Error Behavior
+//!
+//! - **Missing env var** → `None` (no error, this is expected)
+//! - **Invalid UTF-8** → `Error::InvalidUtf8` pushed
+//! - **Parse failure** → `Error::Parse` pushed
 
 use proc_macro2::TokenStream as QuoteStream;
 use quote::{format_ident, quote};

@@ -1,4 +1,37 @@
 //! Environment variable loading code generation.
+//!
+//! This module generates the `from_env()` method and related environment
+//! variable loading code. It's the core of procenv's functionality.
+//!
+//! # Generated Methods
+//!
+//! - [`generate_from_env_impl`] - Main `from_env()` method
+//! - [`generate_profile_setup`] - Profile environment variable handling
+//! - [`generate_dotenv_load`] - `.env` file loading code
+//! - [`generate_field_loader`] - Per-field loading with profile/format support
+//! - [`generate_from_env_with_external_prefix_impl`] - Prefixed loading for nested structs
+//!
+//! # Error Accumulation
+//!
+//! All generated code follows the error accumulation pattern:
+//!
+//! ```rust,ignore
+//! let mut __errors: Vec<Error> = Vec::new();
+//!
+//! // Each field loader pushes errors but continues
+//! let field1 = match std::env::var("VAR1") { ... };
+//! let field2 = match std::env::var("VAR2") { ... };
+//!
+//! // Return all errors at once
+//! if !__errors.is_empty() {
+//!     return Err(Error::Multiple { errors: __errors });
+//! }
+//! ```
+//!
+//! # Profile Support
+//!
+//! When `profile_env` is configured, the generated code reads the profile
+//! from an environment variable and uses profile-specific defaults.
 
 use proc_macro2::TokenStream as QuoteStream;
 use quote::{format_ident, quote};
@@ -303,7 +336,8 @@ pub fn generate_from_env_with_external_prefix_impl(
         .collect();
 
     // Generate assignments
-    let assignments: Vec<QuoteStream> = generators.iter().map(|g| g.generate_assignment()).collect();
+    let assignments: Vec<QuoteStream> =
+        generators.iter().map(|g| g.generate_assignment()).collect();
 
     // Dotenv loading
     let dotenv_load = generate_dotenv_load(&env_config.dotenv);

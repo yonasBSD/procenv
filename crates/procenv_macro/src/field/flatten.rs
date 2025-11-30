@@ -1,4 +1,48 @@
 //! Flatten field implementation.
+//!
+//! This module provides [`FlattenField`], the code generator for nested
+//! configuration structs that should be embedded (flattened) into the parent.
+//!
+//! # Usage
+//!
+//! ```rust,ignore
+//! #[derive(EnvConfig)]
+//! struct DatabaseConfig {
+//!     #[env(var = "DB_HOST")]
+//!     host: String,
+//!     #[env(var = "DB_PORT", default = "5432")]
+//!     port: u16,
+//! }
+//!
+//! #[derive(EnvConfig)]
+//! struct AppConfig {
+//!     #[env(flatten)]
+//!     database: DatabaseConfig,
+//!
+//!     #[env(var = "APP_NAME")]
+//!     name: String,
+//! }
+//! ```
+//!
+//! # Generated Code Pattern
+//!
+//! For a flatten field, generates:
+//! ```rust,ignore
+//! let (database, __database_nested_sources) = DatabaseConfig::from_env_with_sources()?;
+//! ```
+//!
+//! Errors from the nested struct are merged into the parent's error list.
+//!
+//! # Prefix Support
+//!
+//! Flatten fields support an optional prefix:
+//! ```rust,ignore
+//! #[env(flatten, prefix = "DB_")]
+//! database: DatabaseConfig,
+//! ```
+//!
+//! This prepends `DB_` to all nested env var names. Prefixes can be combined
+//! with the parent struct's prefix.
 
 use proc_macro2::TokenStream as QuoteStream;
 use quote::{format_ident, quote};

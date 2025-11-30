@@ -1,4 +1,33 @@
 //! Value origin tracking for error reporting.
+//!
+//! This module provides types for tracking where configuration values originated,
+//! enabling precise error locations in diagnostic messages. When a type mismatch
+//! or validation error occurs, the origin tracker can point to the exact file
+//! and location where the problematic value was defined.
+//!
+//! # How It Works
+//!
+//! 1. As configuration files are loaded, [`OriginTracker`] records which file
+//!    each configuration path (e.g., `"database.port"`) came from
+//! 2. When deserialization fails, the tracker provides source location info
+//! 3. This enables rich error messages with file:line highlighting via miette
+//!
+//! # Internal Use
+//!
+//! This module is primarily used internally by [`ConfigBuilder`](super::ConfigBuilder)
+//! to build source-aware error messages. The public [`OriginTracker`] type is
+//! returned from `build_with_origins()` for debugging purposes.
+//!
+//! # Example Error Output
+//!
+//! ```text
+//! Error: type mismatch at `database.port` in config.toml
+//!    ╭─[config.toml:5:8]
+//!    │
+//!  5 │ port = "not_a_number"
+//!    │        ^^^^^^^^^^^^^^ expected u16
+//!    ╰────
+//! ```
 
 use std::collections::HashMap;
 use std::path::PathBuf;

@@ -31,9 +31,7 @@ use proc_macro2::TokenStream as QuoteStream;
 use quote::quote;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{
-    Data, DeriveInput, Error as SynError, Field, Fields, Result as SynResult,
-};
+use syn::{Data, DeriveInput, Error as SynError, Field, Fields, Result as SynResult};
 
 use crate::field::FieldFactory;
 use crate::parse::EnvConfigAttr;
@@ -73,10 +71,14 @@ impl Expander {
 
         let debug_impl = debug::generate_debug_impl(struct_name, generics, &generators);
 
-        let env_example_impl = example::generate_env_example_impl(struct_name, generics, &generators);
+        let env_example_impl =
+            example::generate_env_example_impl(struct_name, generics, &generators);
 
-        let sources_impl =
-            sources::generate_from_env_with_sources_impl(struct_name, &generators, &env_config_attr);
+        let sources_impl = sources::generate_from_env_with_sources_impl(
+            struct_name,
+            &generators,
+            &env_config_attr,
+        );
 
         // Always generate __config_defaults for nested struct support
         let config_defaults_impl =
@@ -91,14 +93,23 @@ impl Expander {
 
         // Generate validation methods if validate attribute is set
         let validated_impl = if env_config_attr.validate {
-            validation::generate_validated_impl(struct_name, generics, &generators, &env_config_attr)
+            validation::generate_validated_impl(
+                struct_name,
+                generics,
+                &generators,
+                &env_config_attr,
+            )
         } else {
             quote! {}
         };
 
         // Generate external prefix method for flatten support
-        let external_prefix_impl =
-            env::generate_from_env_with_external_prefix_impl(struct_name, generics, &generators, &env_config_attr);
+        let external_prefix_impl = env::generate_from_env_with_external_prefix_impl(
+            struct_name,
+            generics,
+            &generators,
+            &env_config_attr,
+        );
 
         let combined = quote! {
             #from_env_impl

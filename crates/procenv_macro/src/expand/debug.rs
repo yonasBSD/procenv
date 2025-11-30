@@ -1,4 +1,46 @@
 //! Debug implementation code generation.
+//!
+//! This module generates a custom `Debug` implementation that masks secret
+//! fields to prevent accidental exposure of sensitive values in logs.
+//!
+//! # Generated Implementation
+//!
+//! - [`generate_debug_impl`] - Generates `impl Debug for Struct`
+//!
+//! # Secret Masking
+//!
+//! Fields marked with `secret` or using secrecy types show `[REDACTED]`:
+//!
+//! ```rust,ignore
+//! #[derive(EnvConfig)]
+//! struct Config {
+//!     #[env(var = "PORT")]
+//!     port: u16,
+//!
+//!     #[env(var = "API_KEY", secret)]
+//!     api_key: String,
+//! }
+//!
+//! // Debug output:
+//! // Config { port: 8080, api_key: "[REDACTED]" }
+//! ```
+//!
+//! # Secrecy Types
+//!
+//! Fields using `SecretString` or `SecretBox<T>` delegate to the type's
+//! own `Debug` implementation, which also redacts values:
+//!
+//! ```rust,ignore
+//! #[env(var = "API_KEY")]
+//! api_key: SecretString,
+//!
+//! // Uses SecretString's Debug impl which shows: Secret([REDACTED])
+//! ```
+//!
+//! # Regular Fields
+//!
+//! Non-secret fields are shown with their actual values using the standard
+//! debug formatting.
 
 use proc_macro2::TokenStream as QuoteStream;
 use quote::quote;

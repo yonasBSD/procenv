@@ -1,4 +1,53 @@
 //! Validation code generation.
+//!
+//! This module generates validation methods that integrate with the `validator`
+//! crate to validate configuration values after loading.
+//!
+//! # Generated Methods
+//!
+//! - [`generate_validated_impl`] - Generates:
+//!   - `from_env_validated()` - Load and validate from environment
+//!   - `from_env_validated_with_sources()` - With source attribution
+//!
+//! # Requirements
+//!
+//! For validation to be generated, the struct must:
+//! 1. Have `#[env_config(validate)]` attribute
+//! 2. Also derive `validator::Validate`
+//!
+//! ```rust,ignore
+//! #[derive(EnvConfig, Validate)]
+//! #[env_config(validate)]
+//! struct Config {
+//!     #[env(var = "PORT", default = "8080")]
+//!     #[validate(range(min = 1, max = 65535))]
+//!     port: u16,
+//! }
+//! ```
+//!
+//! # Validation Flow
+//!
+//! 1. Load configuration using `from_env()` (may fail with Missing/Parse errors)
+//! 2. Run `validator::Validate::validate()` on the loaded struct
+//! 3. Run any custom field validators (`#[env(validate = "fn_name")]`)
+//! 4. Accumulate all validation errors
+//! 5. Return `Error::Validation` if any validations failed
+//!
+//! # Custom Validators
+//!
+//! Fields can specify custom validation functions:
+//!
+//! ```rust,ignore
+//! #[env(var = "NAME", validate = "validate_name")]
+//! name: String,
+//!
+//! fn validate_name(name: &str) -> Result<(), validator::ValidationError> {
+//!     if name.len() < 3 {
+//!         return Err(validator::ValidationError::new("too_short"));
+//!     }
+//!     Ok(())
+//! }
+//! ```
 
 use proc_macro2::TokenStream as QuoteStream;
 use quote::{format_ident, quote};

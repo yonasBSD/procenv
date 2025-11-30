@@ -137,7 +137,7 @@ pub use source::{ConfigSources, Source, ValueSource};
 #[cfg(feature = "validator")]
 mod validation;
 #[cfg(feature = "validator")]
-pub use validation::{validation_errors_to_procenv, ValidationFieldError};
+pub use validation::{ValidationFieldError, validation_errors_to_procenv};
 
 // ============================================================================
 // File Configuration Support

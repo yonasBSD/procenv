@@ -1,4 +1,52 @@
 //! CLI argument integration code generation.
+//!
+//! This module generates the `from_args()` method for loading configuration
+//! from command-line arguments using the `clap` crate.
+//!
+//! # Generated Methods
+//!
+//! - [`generate_from_args_impl`] - Main implementation including:
+//!   - `from_args()` - Load from `std::env::args()`
+//!   - `from_args_from(iter)` - Load from custom iterator (for testing)
+//!   - `from_args_with_sources()` - With source attribution
+//!
+//! # Priority Order
+//!
+//! CLI arguments have the highest priority:
+//!
+//! 1. **CLI arguments** (highest) - `--port 8080`
+//! 2. **Environment variables** - `PORT=8080`
+//! 3. **Dotenv files** - `.env` contents
+//! 4. **Defaults** (lowest) - `default = "8080"`
+//!
+//! # Field Configuration
+//!
+//! Fields must have CLI config to be included:
+//!
+//! ```rust,ignore
+//! #[env(var = "PORT", default = "8080", arg = "port", short = 'p')]
+//! port: u16,
+//! ```
+//!
+//! Generates a clap argument:
+//! ```rust,ignore
+//! Arg::new("port")
+//!     .long("port")
+//!     .short('p')
+//!     .value_name("port")
+//! ```
+//!
+//! # CLI-Aware Loading
+//!
+//! The generated loaders check CLI first, then fall back to environment:
+//!
+//! ```rust,ignore
+//! let port = if let Some(cli_val) = __port_cli {
+//!     cli_val.parse()?  // From CLI
+//! } else {
+//!     std::env::var("PORT")?.parse()?  // From env
+//! };
+//! ```
 
 use proc_macro2::TokenStream as QuoteStream;
 use quote::{format_ident, quote};
@@ -40,7 +88,8 @@ pub fn generate_from_args_impl(
         .collect();
 
     // Generate assignments
-    let assignments: Vec<QuoteStream> = generators.iter().map(|g| g.generate_assignment()).collect();
+    let assignments: Vec<QuoteStream> =
+        generators.iter().map(|g| g.generate_assignment()).collect();
 
     // Dotenv loading
     let dotenv_load = generate_dotenv_load(&env_config.dotenv);
