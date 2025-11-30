@@ -39,8 +39,7 @@ This is a learning project exploring what's possible when you combine proc-macro
 
 ## Requirements
 
-- **Rust nightly** (uses 2024 edition features)
-- `let_chains` and `if_let_guard` unstable features
+- **Rust 1.91.1+** (stable) - Uses Rust 2024 edition with `let_chains` (stabilized in 1.88)
 
 ## Quick Start
 
@@ -71,18 +70,16 @@ fn main() -> Result<(), procenv::Error> {
 
 ## Installation
 
-**Note:** Not yet published to crates.io. Clone the repo to use.
-
 ```toml
 [dependencies]
 # Default features include: dotenv, secrecy, clap, file-all (toml/yaml/json)
-procenv = { path = "path/to/procenv" }
+procenv = "0.1"
 
 # Minimal (no default features)
-procenv = { path = "path/to/procenv", default-features = false }
+procenv = { version = "0.1", default-features = false }
 
 # With validation support
-procenv = { path = "path/to/procenv", features = ["validator"] }
+procenv = { version = "0.1", features = ["validator"] }
 ```
 
 ### Feature Flags
@@ -412,30 +409,44 @@ Run the example: `cargo run --example custom_provider --features provider`
 
 ## Known Limitations
 
-- **All-or-nothing loading** - No runtime access to individual config values
+- **All-or-nothing loading** - No runtime access to individual config values (Phase D planned)
 - **No hot reload** - Can't watch for config file changes
 - **Zero production usage** - Untested in real-world applications
-- **Requires nightly** - Uses unstable Rust features
 
 ## Project Structure
 
 ```
 procenv/
 ├── crates/
-│   ├── procenv/           # Main crate (runtime + re-exports)
+│   ├── procenv/              # Main crate (runtime + re-exports)
 │   │   ├── src/
-│   │   │   ├── lib.rs     # Error types, Source enum
-│   │   │   └── file.rs    # ConfigBuilder, file parsing
+│   │   │   ├── lib.rs        # Crate root, public exports
+│   │   │   ├── error.rs      # Error types with miette diagnostics
+│   │   │   ├── source.rs     # Source attribution types
+│   │   │   ├── loader.rs     # ConfigLoader orchestrator
+│   │   │   ├── file/         # File configuration support
+│   │   │   └── provider/     # Provider extensibility framework
 │   │   ├── examples/
 │   │   └── tests/
-│   └── procenv_macro/     # Proc-macro implementation
+│   └── procenv_macro/        # Proc-macro implementation
 │       └── src/
-│           ├── lib.rs     # Macro entry point
-│           ├── parse.rs   # Attribute parsing
-│           ├── field.rs   # Field code generation
-│           └── expand.rs  # Macro expansion
-├── PROGRESS.md            # Development roadmap
-└── CLAUDE.md              # AI assistant instructions
+│           ├── lib.rs        # Macro entry point
+│           ├── parse.rs      # Attribute parsing
+│           ├── field/        # Field type classification & code gen
+│           │   ├── mod.rs    # FieldGenerator trait + factory
+│           │   ├── required.rs
+│           │   ├── default.rs
+│           │   ├── optional.rs
+│           │   ├── flatten.rs
+│           │   └── secret.rs
+│           └── expand/       # Code generation orchestration
+│               ├── mod.rs    # Expander orchestrator
+│               ├── env.rs    # from_env() generation
+│               ├── config.rs # from_config() generation
+│               ├── args.rs   # from_args() CLI support
+│               └── ...
+├── PROGRESS.md               # Development roadmap
+└── CLAUDE.md                 # AI assistant instructions
 ```
 
 ## Development Status
