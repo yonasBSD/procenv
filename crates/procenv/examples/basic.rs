@@ -1,10 +1,17 @@
-//! Example: EnvConfig with error accumulation
+//! Example: `EnvConfig` with error accumulation
 //!
 //! Run with missing vars to see all errors at once:
 //!   cargo run --package procenv --example basic
 //!
 //! Run with required vars set:
-//!   DATABASE_URL=postgres://localhost SECRET=xyz cargo run --package procenv  --example basic
+//!   `DATABASE_URL=postgres://localhost SECRET=xyz cargo run --package procenv  --example basic`
+#![allow(
+    unused,
+    dead_code,
+    clippy::no_effect_underscore_binding,
+    clippy::struct_field_names,
+    clippy::manual_strip
+)]
 
 use procenv::EnvConfig;
 

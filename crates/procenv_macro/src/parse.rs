@@ -231,6 +231,10 @@ pub struct EnvAttr {
 /// - `flatten` can only be combined with `prefix`
 /// - `format` must be one of: `json`, `toml`, `yaml`
 #[derive(Default)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "attribute parser naturally has many boolean flags for each supported option"
+)]
 pub struct Parser {
     /// Accumulated variable name (from `var = "..."`)
     var_name: Option<String>,
@@ -278,6 +282,10 @@ impl Parser {
     /// For example, `#[env(var = "X", secret)]` calls this twice:
     /// 1. Once with `var = "X"`
     /// 2. Once with `secret`
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "ParseNestedMeta is passed by value per syn's parse_nested_meta callback signature"
+    )]
     fn parse_meta(&mut self, meta: ParseNestedMeta) -> SynResult<()> {
         // Get the option name (e.g., "var", "default", "optional", "secret")
         let ident = meta
@@ -369,8 +377,7 @@ impl Parser {
                     "json" | "toml" | "yaml" => {}
                     _ => {
                         return Err(meta.error(format!(
-                            "Unknown format '{}'. Supported: json, toml, yaml",
-                            format_val
+                            "Unknown format '{format_val}'. Supported: json, toml, yaml"
                         )));
                     }
                 }
@@ -446,7 +453,7 @@ impl Parser {
 
     /// Parse the `#[profile(...)]` attribute from a field.
     ///
-    /// Returns a ProfileAttr containing profile name -> value mappings.
+    /// Returns a `ProfileAttr` containing profile name -> value mappings.
     pub fn parse_profile_attr(field: &Field) -> SynResult<Option<ProfileAttr>> {
         for attr in &field.attrs {
             if !attr.path().is_ident("profile") {
@@ -508,8 +515,7 @@ impl Parser {
         let field_name = field
             .ident
             .as_ref()
-            .map(|ident| ident.to_string())
-            .unwrap_or_else(|| "unnamed".into());
+            .map_or_else(|| "unnamed".into(), std::string::ToString::to_string);
 
         Err(SynError::new_spanned(
             field,

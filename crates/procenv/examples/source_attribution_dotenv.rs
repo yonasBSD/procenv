@@ -5,6 +5,15 @@
 //! cd crates/procenv/examples && cargo run --example source_attribution_dotenv
 //! ```
 
+#![allow(
+    unused,
+    dead_code,
+    clippy::no_effect_underscore_binding,
+    clippy::struct_field_names,
+    clippy::manual_strip,
+    clippy::result_large_err
+)]
+
 use procenv::EnvConfig;
 
 #[derive(EnvConfig)]
@@ -55,7 +64,7 @@ fn main() {
             println!("  debug: {}", config.debug);
             println!("  api_key: {:?}", config.api_key);
 
-            println!("\n{}", sources);
+            println!("\n{sources}");
 
             println!("Expected sources:");
             println!("  database_url: .env file (set in .env.source_test)");
@@ -64,7 +73,7 @@ fn main() {
             println!("  api_key:      .env file (set in .env.source_test)");
         }
         Err(e) => {
-            eprintln!("Failed to load config: {}", e);
+            eprintln!("Failed to load config: {e}");
             std::process::exit(1);
         }
     }

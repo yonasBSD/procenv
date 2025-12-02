@@ -142,7 +142,7 @@ impl<T> WatchedConfig<T> {
     ///
     /// # Returns
     ///
-    /// A tuple of (old_config, old_sources)
+    /// A tuple of (`old_config`, `old_sources`)
     pub(crate) fn swap(
         &self,
         new_config: Arc<T>,
@@ -177,7 +177,7 @@ impl<T> WatchedConfig<T> {
     ///
     /// # Returns
     ///
-    /// A tuple of (old_config, old_sources)
+    /// A tuple of (`old_config`, `old_sources`)
     pub(crate) fn update<F>(&self, f: F) -> (Arc<T>, ConfigSources)
     where
         F: FnOnce(&T, &ConfigSources) -> (T, ConfigSources),

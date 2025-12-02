@@ -36,6 +36,10 @@ impl DotenvProvider {
     ///
     /// Returns an error if the file exists but cannot be parsed.
     /// Returns an empty provider if the file doesn't exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the `.env` file exists but cannot be read or parsed.
     pub fn new() -> Result<Self, std::io::Error> {
         Self::from_path_optional(".env")
     }
@@ -43,6 +47,10 @@ impl DotenvProvider {
     /// Creates a provider from a specific `.env` file path.
     ///
     /// Returns an error if the file doesn't exist or cannot be parsed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file doesn't exist or cannot be read.
     pub fn from_path(path: impl Into<PathBuf>) -> Result<Self, std::io::Error> {
         let path = path.into();
         let values = Self::parse_dotenv_file(&path)?;
@@ -54,6 +62,10 @@ impl DotenvProvider {
     }
 
     /// Creates a provider from a path, returning empty if file doesn't exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file exists but cannot be read.
     pub fn from_path_optional(path: impl Into<PathBuf>) -> Result<Self, std::io::Error> {
         let path = path.into();
         if !path.exists() {
@@ -70,12 +82,13 @@ impl DotenvProvider {
     ///
     /// Only keys starting with the prefix will be returned, and the prefix
     /// is stripped from the key names.
+    #[must_use]
     pub fn with_prefix(mut self, prefix: impl Into<String>) -> Self {
         self.prefix = Some(prefix.into());
         self
     }
 
-    /// Parse a dotenv file into a HashMap.
+    /// Parse a dotenv file into a `HashMap`.
     fn parse_dotenv_file(path: &PathBuf) -> Result<HashMap<String, String>, std::io::Error> {
         let content = std::fs::read_to_string(path)?;
         Ok(Self::parse_dotenv_content(&content))
@@ -115,7 +128,7 @@ impl DotenvProvider {
     /// Returns the full key with prefix handling.
     fn lookup_key(&self, key: &str) -> String {
         match &self.prefix {
-            Some(p) => format!("{}{}", p, key),
+            Some(p) => format!("{p}{key}"),
             None => key.to_string(),
         }
     }
@@ -132,7 +145,7 @@ impl Default for DotenvProvider {
 }
 
 impl Provider for DotenvProvider {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "dotenv"
     }
 

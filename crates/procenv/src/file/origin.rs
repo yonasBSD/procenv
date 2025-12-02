@@ -10,7 +10,7 @@
 //! 1. As configuration files are loaded, [`OriginTracker`] records which file
 //!    each configuration path (e.g., `"database.port"`) came from
 //! 2. When deserialization fails, the tracker provides source location info
-//! 3. This enables rich error messages with file:line highlighting via miette
+//! 3. This enables rich error messages with <file:line> highlighting via miette
 //!
 //! # Internal Use
 //!
@@ -31,6 +31,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::string::String;
 
 use serde_json as SJSON;
 
@@ -160,6 +161,7 @@ impl OriginTracker {
     ///
     /// Returns the file path if the field was explicitly loaded from a file.
     /// Does not return a fallback - only returns Some if the field is actually tracked.
+    #[must_use]
     pub fn get_file_source(&self, field_name: &str) -> Option<PathBuf> {
         // Only return if we have an exact match or parent match in origins
         // Do NOT use the fallback to most recent source
@@ -180,12 +182,13 @@ impl OriginTracker {
     }
 
     /// Check if any files were loaded.
+    #[must_use]
     pub fn has_file_sources(&self) -> bool {
         !self.sources.is_empty()
     }
 
     /// Get all tracked field paths.
     pub fn tracked_fields(&self) -> impl Iterator<Item = &str> {
-        self.origins.keys().map(|s| s.as_str())
+        self.origins.keys().map(String::as_str)
     }
 }

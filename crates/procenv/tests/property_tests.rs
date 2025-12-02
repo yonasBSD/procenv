@@ -3,6 +3,9 @@
 //! These tests verify that critical invariants hold for all possible inputs,
 //! not just hand-picked test cases.
 
+#![allow(clippy::pedantic)]
+#![allow(clippy::single_match)] // Match used for pattern clarity in tests
+
 use proptest::prelude::*;
 use std::collections::HashMap;
 
@@ -56,7 +59,7 @@ mod config_value_properties {
         /// Float roundtrip (with tolerance for precision)
         #[test]
         fn float_roundtrip(f in prop::num::f64::NORMAL) {
-            let s = format!("{}", f);
+            let s = format!("{f}");
             let value = ConfigValue::from_str_infer(&s);
 
             // Should parse as float if it contains decimal
@@ -78,8 +81,8 @@ mod config_value_properties {
         #[test]
         fn display_never_panics(s in ".*") {
             let value = ConfigValue::from_str_infer(&s);
-            let _ = format!("{}", value);
-            let _ = format!("{:?}", value);
+            let _ = format!("{value}");
+            let _ = format!("{value:?}");
         }
     }
 }
@@ -105,8 +108,8 @@ mod maybe_redacted_properties {
             prop_assert!(redacted.as_str().is_none());
 
             // Display check: original value never in output
-            let debug = format!("{:?}", redacted);
-            let display = format!("{}", redacted);
+            let debug = format!("{redacted:?}");
+            let display = format!("{redacted}");
 
             prop_assert!(!debug.contains(&value),
                 "Secret '{}' leaked in Debug: {}", value, debug);
@@ -147,7 +150,7 @@ mod numeric_properties {
         /// i32 values fit in i64 container
         #[test]
         fn i32_fits_in_i64(n in prop::num::i32::ANY) {
-            let value = ConfigValue::Integer(n as i64);
+            let value = ConfigValue::Integer(i64::from(n));
             let result = value.to_i32();
             prop_assert_eq!(result, Some(n));
         }
@@ -155,7 +158,7 @@ mod numeric_properties {
         /// u32 values fit in u64 container
         #[test]
         fn u32_fits_in_u64(n in prop::num::u32::ANY) {
-            let value = ConfigValue::UnsignedInteger(n as u64);
+            let value = ConfigValue::UnsignedInteger(u64::from(n));
             let result = value.to_u32();
             prop_assert_eq!(result, Some(n));
         }
@@ -173,7 +176,7 @@ mod numeric_properties {
         #[test]
         fn bool_to_numeric(b in prop::bool::ANY) {
             let value = ConfigValue::Boolean(b);
-            let expected = if b { 1 } else { 0 };
+            let expected = i64::from(b);
 
             prop_assert_eq!(value.to_i64(), Some(expected));
             prop_assert_eq!(value.to_u64(), Some(expected as u64));
@@ -203,12 +206,12 @@ mod error_properties {
                 &value,
                 true, // secret
                 &type_name,
-                Box::new(std::io::Error::new(std::io::ErrorKind::Other, "test")),
+                Box::new(std::io::Error::other("test")),
             );
 
             // Check the error doesn't contain the secret value
-            let error_str = format!("{}", error);
-            let debug_str = format!("{:?}", error);
+            let error_str = format!("{error}");
+            let debug_str = format!("{error:?}");
 
             prop_assert!(!error_str.contains(&value),
                 "Secret leaked in Error Display");
@@ -220,7 +223,7 @@ mod error_properties {
         #[test]
         fn missing_error_has_help(var in "[A-Z][A-Z0-9_]*") {
             let error = Error::missing(&var);
-            let error_str = format!("{}", error);
+            let error_str = format!("{error}");
 
             // Should mention the variable name
             prop_assert!(error_str.contains(&var) || error_str.to_lowercase().contains("missing"));
@@ -479,8 +482,8 @@ mod string_edge_cases {
         fn unicode_handling(s in "\\PC*") {
             let value = ConfigValue::from_str_infer(&s);
             // Should not panic and should produce valid output
-            let _ = format!("{}", value);
-            let _ = format!("{:?}", value);
+            let _ = format!("{value}");
+            let _ = format!("{value:?}");
         }
 
         /// Strings with special characters work

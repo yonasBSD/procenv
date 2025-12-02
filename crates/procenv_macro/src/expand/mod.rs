@@ -1,4 +1,4 @@
-//! Code generation orchestration for EnvConfig derive macro.
+//! Code generation orchestration for `EnvConfig` derive macro.
 //!
 //! This module is the conductor of the macro. The [`Expander`] struct
 //! coordinates the code generation process:
@@ -50,15 +50,15 @@ pub struct Expander;
 
 impl Expander {
     /// Main entry point for expanding the derive macro.
-    pub fn expand(input: DeriveInput) -> SynResult<TokenStream> {
+    pub fn expand(input: &DeriveInput) -> SynResult<TokenStream> {
         let struct_name = &input.ident;
         let generics = &input.generics;
 
         // Parse struct-level #[env_config(...)] attribute
-        let env_config_attr = EnvConfigAttr::parse_from_struct(&input)?;
+        let env_config_attr = EnvConfigAttr::parse_from_struct(input)?;
 
         // Validate and extract the struct's named fields
-        let fields = Self::extract_struct_fields(&input)?;
+        let fields = Self::extract_struct_fields(input)?;
 
         // Parse each field into a FieldGenerator trait object
         let generators: Vec<Box<dyn crate::field::FieldGenerator>> = fields
@@ -86,17 +86,17 @@ impl Expander {
         //
         // For env-only configs (even with flatten), __config_defaults is not needed.
         // The from_env() path handles flatten differently (via from_env_with_external_prefix).
-        let config_defaults_impl = if !env_config_attr.files.is_empty() {
-            config::generate_config_defaults_impl(struct_name, generics, &generators)
-        } else {
+        let config_defaults_impl = if env_config_attr.files.is_empty() {
             quote! {}
+        } else {
+            config::generate_config_defaults_impl(struct_name, generics, &generators)
         };
 
         // Generate file config method if files are configured
-        let file_config_impl = if !env_config_attr.files.is_empty() {
-            config::generate_from_config_impl(struct_name, generics, &generators, &env_config_attr)
-        } else {
+        let file_config_impl = if env_config_attr.files.is_empty() {
             quote! {}
+        } else {
+            config::generate_from_config_impl(struct_name, generics, &generators, &env_config_attr)
         };
 
         // Generate validation methods if validate attribute is set

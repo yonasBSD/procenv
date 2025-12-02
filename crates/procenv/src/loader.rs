@@ -22,6 +22,7 @@
 //! ```
 
 use std::collections::HashMap;
+use std::string::String;
 
 use crate::provider::{Provider, ProviderError, ProviderSource, ProviderValue};
 use crate::{ConfigSources, Error, Source, ValueSource};
@@ -42,6 +43,7 @@ pub struct ConfigLoader {
 
 impl ConfigLoader {
     /// Creates a new empty configuration loader.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             providers: Vec::new(),
@@ -75,6 +77,10 @@ impl ConfigLoader {
     }
 
     /// Adds a dotenv provider from the default `.env` file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the `.env` file cannot be read.
     #[cfg(feature = "dotenv")]
     pub fn with_dotenv(self) -> Result<Self, std::io::Error> {
         let provider = crate::provider::DotenvProvider::new()?;
@@ -82,6 +88,10 @@ impl ConfigLoader {
     }
 
     /// Adds a dotenv provider from a specific path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the specified file cannot be read.
     #[cfg(feature = "dotenv")]
     pub fn with_dotenv_path(
         self,
@@ -92,7 +102,12 @@ impl ConfigLoader {
     }
 
     /// Adds a file provider from a required file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file does not exist or cannot be parsed.
     #[cfg(feature = "file")]
+    #[allow(clippy::result_large_err)]
     pub fn with_file(
         self,
         path: impl AsRef<std::path::Path>,
@@ -102,7 +117,12 @@ impl ConfigLoader {
     }
 
     /// Adds a file provider from an optional file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file exists but cannot be parsed.
     #[cfg(feature = "file")]
+    #[allow(clippy::result_large_err)]
     pub fn with_file_optional(
         self,
         path: impl AsRef<std::path::Path>,
@@ -158,7 +178,7 @@ impl ConfigLoader {
                 }
                 Err(e) => {
                     // Accumulate error but continue trying other providers
-                    self.errors.push(self.provider_error_to_error(e));
+                    self.errors.push(Self::provider_error_to_error(&e));
                 }
             }
         }
@@ -168,14 +188,13 @@ impl ConfigLoader {
 
     /// Gets a required value, recording a Missing error if not found.
     pub fn get_required(&mut self, key: &str, env_var_name: &'static str) -> Option<ProviderValue> {
-        match self.get(key) {
-            Some(v) => Some(v),
-            None => {
-                self.errors.push(Error::missing(env_var_name));
-                self.sources
-                    .add(key, ValueSource::new(env_var_name, Source::NotSet));
-                None
-            }
+        if let Some(v) = self.get(key) {
+            Some(v)
+        } else {
+            self.errors.push(Error::missing(env_var_name));
+            self.sources
+                .add(key, ValueSource::new(env_var_name, Source::NotSet));
+            None
         }
     }
 
@@ -186,21 +205,25 @@ impl ConfigLoader {
         env_var_name: &str,
         default: &str,
     ) -> ProviderValue {
-        match self.get(key) {
-            Some(v) => v,
-            None => {
-                self.sources
-                    .add(key, ValueSource::new(env_var_name, Source::Default));
-                ProviderValue {
-                    value: default.to_string(),
-                    source: ProviderSource::BuiltIn(Source::Default),
-                    secret: false,
-                }
+        if let Some(v) = self.get(key) {
+            v
+        } else {
+            self.sources
+                .add(key, ValueSource::new(env_var_name, Source::Default));
+            ProviderValue {
+                value: default.to_string(),
+                source: ProviderSource::BuiltIn(Source::Default),
+                secret: false,
             }
         }
     }
 
     /// Gets a value and parses it to the target type.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the value cannot be parsed to the target type.
+    #[allow(clippy::result_large_err)]
     pub fn get_parsed<T: std::str::FromStr>(&mut self, key: &str) -> Result<Option<T>, Error>
     where
         T::Err: std::error::Error + Send + Sync + 'static,
@@ -248,16 +271,19 @@ impl ConfigLoader {
     }
 
     /// Lists all cached keys.
+    #[must_use]
     pub fn cached_keys(&self) -> Vec<&str> {
-        self.cache.keys().map(|s| s.as_str()).collect()
+        self.cache.keys().map(String::as_str).collect()
     }
 
     /// Checks if any errors have occurred.
+    #[must_use]
     pub fn has_errors(&self) -> bool {
         !self.errors.is_empty()
     }
 
     /// Returns accumulated errors.
+    #[must_use]
     pub fn errors(&self) -> &[Error] {
         &self.errors
     }
@@ -268,11 +294,13 @@ impl ConfigLoader {
     }
 
     /// Returns the source attribution for loaded values.
+    #[must_use]
     pub fn sources(&self) -> &ConfigSources {
         &self.sources
     }
 
     /// Consumes the loader and returns source attribution.
+    #[must_use]
     pub fn into_sources(self) -> ConfigSources {
         self.sources
     }
@@ -280,6 +308,16 @@ impl ConfigLoader {
     /// Finalizes loading and returns any accumulated errors.
     ///
     /// Call this after getting all required values to check for errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns any accumulated errors from the loading process.
+    ///
+    /// # Panics
+    ///
+    /// This function will not panic. The `unwrap()` is safe because we check
+    /// that the errors vector has exactly one element before calling it.
+    #[allow(clippy::result_large_err)]
     pub fn finish(self) -> Result<ConfigSources, Error> {
         if self.errors.is_empty() {
             Ok(self.sources)
@@ -292,8 +330,8 @@ impl ConfigLoader {
         }
     }
 
-    /// Converts a ProviderError to the main Error type.
-    fn provider_error_to_error(&self, e: ProviderError) -> Error {
+    /// Converts a `ProviderError` to the main Error type.
+    fn provider_error_to_error(e: &ProviderError) -> Error {
         Error::Provider {
             provider: e.provider_name().to_string(),
             message: e.to_string(),

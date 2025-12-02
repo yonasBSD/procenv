@@ -107,15 +107,15 @@ impl<T: Clone + Send + Sync + 'static> ConfigWatcher<T> {
     pub fn start<F>(
         initial_config: T,
         initial_sources: ConfigSources,
-        watcher_config: WatcherConfig,
+        watcher_config: &WatcherConfig,
         reload_fn: F,
     ) -> Result<Self, WatchError>
     where
         F: Fn() -> Result<(T, ConfigSources), Error> + Send + Sync + 'static,
     {
-        let watched_config = Arc::new(WatchedConfig::new(initial_config, initial_sources));
+        let config_container = Arc::new(WatchedConfig::new(initial_config, initial_sources));
         let state = Arc::new(WatcherState::new(
-            watched_config.clone(),
+            config_container.clone(),
             watcher_config.paths.clone(),
         ));
 
@@ -145,10 +145,10 @@ impl<T: Clone + Send + Sync + 'static> ConfigWatcher<T> {
             .flat_map(|p| {
                 let mut paths = vec![p.clone()];
                 // Also store canonical path if file exists
-                if let Ok(canonical) = p.canonicalize() {
-                    if canonical != *p {
-                        paths.push(canonical);
-                    }
+                if let Ok(canonical) = p.canonicalize()
+                    && canonical != *p
+                {
+                    paths.push(canonical);
                 }
                 paths
             })
@@ -170,7 +170,7 @@ impl<T: Clone + Send + Sync + 'static> ConfigWatcher<T> {
                 );
             })
             .map_err(|e| {
-                WatchError::init_failed(format!("failed to spawn watcher thread: {}", e), None)
+                WatchError::init_failed(format!("failed to spawn watcher thread: {e}"), None)
             })?;
 
         Ok(Self {
@@ -240,7 +240,7 @@ fn create_notify_watcher(
     notify::recommended_watcher(move |res| {
         let _ = tx.send(res);
     })
-    .map_err(|e| WatchError::init_failed(format!("failed to create file watcher: {}", e), Some(e)))
+    .map_err(|e| WatchError::init_failed(format!("failed to create file watcher: {e}"), Some(e)))
 }
 
 /// Watch a path with the notify watcher.
@@ -263,11 +263,11 @@ fn watch_path(watcher: &mut RecommendedWatcher, path: &Path) -> Result<(), Watch
 
     watcher
         .watch(&watch_target, RecursiveMode::NonRecursive)
-        .map_err(|e| WatchError::path_error(path, format!("failed to watch: {}", e)))
+        .map_err(|e| WatchError::path_error(path, format!("failed to watch: {e}")))
 }
 
 /// Main watcher loop running in a separate thread.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 fn watcher_loop<T, F>(
     state: Arc<WatcherState<T>>,
     command_rx: Receiver<WatchCommand>,

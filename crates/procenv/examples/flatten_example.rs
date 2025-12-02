@@ -1,9 +1,17 @@
 //! Example: Nested configs with flatten
 //!
 //! Run with:
-//!   DATABASE_URL="postgres://localhost/db" DATABASE_PORT="5432" \
+//!   `DATABASE_URL="postgres://localhost/db" DATABASE_PORT="5432" \
 //!   REDIS_URL="redis://localhost" \
-//!   cargo run --example flatten_example
+//!   cargo run --example flatten_example`
+#![allow(
+    unused,
+    dead_code,
+    clippy::no_effect_underscore_binding,
+    clippy::struct_field_names,
+    clippy::manual_strip,
+    clippy::result_large_err
+)]
 
 use procenv::EnvConfig;
 
@@ -30,11 +38,11 @@ struct RedisConfig {
 /// Main application config that composes other configs
 #[derive(EnvConfig)]
 struct AppConfig {
-    /// Flattens DatabaseConfig fields into this struct
+    /// Flattens `DatabaseConfig` fields into this struct
     #[env(flatten)]
     database: DatabaseConfig,
 
-    /// Flattens RedisConfig fields into this struct
+    /// Flattens `RedisConfig` fields into this struct
     #[env(flatten)]
     redis: RedisConfig,
 

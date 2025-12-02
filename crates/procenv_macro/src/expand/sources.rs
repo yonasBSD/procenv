@@ -47,7 +47,7 @@ use crate::parse::EnvConfigAttr;
 use super::args::generate_from_args_impl;
 use super::env::{generate_dotenv_load, generate_field_loader, generate_profile_setup};
 
-/// Generate the from_env_with_sources() implementation.
+/// Generate the `from_env_with_sources()` implementation.
 pub fn generate_from_env_with_sources_impl(
     struct_name: &Ident,
     generators: &[Box<dyn FieldGenerator>],
@@ -68,7 +68,7 @@ pub fn generate_from_env_with_sources_impl(
     };
 
     // Dotenv loading
-    let dotenv_load = generate_dotenv_load(&env_config.dotenv);
+    let dotenv_load = generate_dotenv_load(env_config.dotenv.as_ref());
 
     // Track if dotenv was loaded
     let dotenv_loaded_flag = if env_config.dotenv.is_some() {

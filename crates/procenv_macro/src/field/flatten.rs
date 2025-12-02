@@ -177,7 +177,6 @@ impl FieldGenerator for FlattenField {
     fn generate_source_tracking(&self) -> QuoteStream {
         let field_name = &self.name;
         let field_name_str = field_name.to_string();
-        let _ty = &self.ty;
 
         let nested_sources_ident = format_ident!("__{}_nested_sources", field_name);
 

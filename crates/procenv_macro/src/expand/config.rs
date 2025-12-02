@@ -44,6 +44,8 @@
 //! flatten fields. It returns a JSON object with default values that can
 //! be merged into the parent's defaults.
 
+use std::string::String;
+
 use proc_macro2::TokenStream as QuoteStream;
 use quote::quote;
 use syn::{Generics, Ident};
@@ -54,6 +56,10 @@ use crate::parse::EnvConfigAttr;
 use super::env::generate_dotenv_load;
 
 /// Generate the `from_config()` method for file-based configuration loading.
+#[expect(
+    clippy::too_many_lines,
+    reason = "proc-macro code generation inherently requires verbose quote! blocks"
+)]
 pub fn generate_from_config_impl(
     struct_name: &Ident,
     generics: &Generics,
@@ -109,7 +115,7 @@ pub fn generate_from_config_impl(
     };
 
     // Generate dotenv loading
-    let dotenv_load = generate_dotenv_load(&env_config_attr.dotenv);
+    let dotenv_load = generate_dotenv_load(env_config_attr.dotenv.as_ref());
 
     // Generate profile setup for from_config
     let (profile_setup, profile_defaults) =
@@ -313,7 +319,7 @@ pub fn generate_from_config_impl(
     }
 }
 
-/// Generate profile setup code and profile defaults for from_config().
+/// Generate profile setup code and profile defaults for `from_config()`.
 fn generate_profile_defaults_for_config(
     env_config_attr: &EnvConfigAttr,
     generators: &[Box<dyn FieldGenerator>],
@@ -330,7 +336,7 @@ fn generate_profile_defaults_for_config(
 
     // Generate profile validation if profiles list is provided
     let validation = if let Some(profiles) = &env_config_attr.profiles {
-        let profile_strs: Vec<&str> = profiles.iter().map(|s| s.as_str()).collect();
+        let profile_strs: Vec<&str> = profiles.iter().map(String::as_str).collect();
         quote! {
             // Validate profile against allowed list
             if let std::option::Option::Some(ref p) = __profile {

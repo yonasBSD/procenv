@@ -3,6 +3,7 @@
 //! Tests for the `#[env_config(validate)]` attribute which enables
 //! `from_env_validated()` method generation.
 
+#![allow(clippy::pedantic)]
 #![cfg(feature = "validator")]
 
 use procenv::EnvConfig;
@@ -59,7 +60,7 @@ fn test_invalid_port_fails_validation() {
             assert!(result.is_err());
 
             let err = result.unwrap_err();
-            let display = format!("{}", err);
+            let display = format!("{err}");
             assert!(display.contains("validation"));
         },
     );
@@ -215,7 +216,7 @@ fn test_loading_error_before_validation() {
     // Should be a Missing error, not Validation
     match result.unwrap_err() {
         procenv::Error::Missing { .. } => (), // Expected
-        other => panic!("Expected Missing error, got: {:?}", other),
+        other => panic!("Expected Missing error, got: {other:?}"),
     }
 }
 

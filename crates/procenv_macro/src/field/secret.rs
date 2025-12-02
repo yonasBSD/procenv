@@ -1,4 +1,4 @@
-//! Secret field implementations (SecretString, SecretBox).
+//! Secret field implementations (`SecretString`, `SecretBox`).
 //!
 //! This module provides code generators for fields using the `secrecy` crate's
 //! types, which provide automatic secret protection:
@@ -15,7 +15,7 @@
 //!
 //! # Generated Code Pattern
 //!
-//! For a SecretString field:
+//! For a `SecretString` field:
 //! ```rust,ignore
 //! #[env(var = "API_KEY")]
 //! api_key: SecretString,
@@ -43,7 +43,7 @@ use super::{EnvExampleEntry, FieldGenerator};
 
 /// A field of type `SecretString` for secret string values.
 ///
-/// SecretString is a type alias for `SecretBox<str>` from the secrecy crate.
+/// `SecretString` is a type alias for `SecretBox<str>` from the secrecy crate.
 /// It provides automatic Debug/Display redaction and zeroize on drop.
 ///
 /// ## Behavior
@@ -206,7 +206,7 @@ pub struct SecretBoxField {
     /// The struct field name
     pub name: Ident,
 
-    /// The inner type T of SecretBox<T>
+    /// The inner type T of `SecretBox<T>`
     pub inner_type: Type,
 
     /// The environment variable name

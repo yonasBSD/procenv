@@ -1,5 +1,8 @@
 //! Integration tests for provider extensibility (Phase C).
 
+#![allow(clippy::pedantic)]
+#![allow(clippy::match_wildcard_for_single_variants)] // Test uses wildcard for clarity
+
 use procenv::provider::{Provider, ProviderResult, ProviderSource, ProviderValue};
 use procenv::{ConfigLoader, Source};
 use std::collections::HashMap;

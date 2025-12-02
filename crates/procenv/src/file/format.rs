@@ -89,6 +89,7 @@ impl FileFormat {
     /// let format = FileFormat::from_path(Path::new("config.toml"));
     /// assert_eq!(format, Some(FileFormat::Toml));
     /// ```
+    #[must_use]
     pub fn from_path(path: &Path) -> Option<Self> {
         let ext = path.extension()?.to_str()?;
 
@@ -106,6 +107,7 @@ impl FileFormat {
     }
 
     /// Get the format name for error messages.
+    #[must_use]
     pub fn name(&self) -> &'static str {
         match self {
             FileFormat::Json => "JSON",

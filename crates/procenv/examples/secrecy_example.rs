@@ -8,6 +8,15 @@
 //! cargo run --example secrecy_example
 //! ```
 
+#![allow(
+    unused,
+    dead_code,
+    clippy::no_effect_underscore_binding,
+    clippy::struct_field_names,
+    clippy::manual_strip,
+    clippy::result_large_err
+)]
+
 use procenv::{EnvConfig, ExposeSecret, SecretBox, SecretString};
 
 #[derive(EnvConfig)]
@@ -16,11 +25,11 @@ struct Config {
     #[env(var = "DATABASE_URL")]
     db_url: String,
 
-    /// Secret string using SecretString (auto-detected)
+    /// Secret string using `SecretString` (auto-detected)
     #[env(var = "API_KEY")]
     api_key: SecretString,
 
-    /// Secret numeric value using SecretBox<T>
+    /// Secret numeric value using `SecretBox<T>`
     #[env(var = "SECRET_PORT")]
     secret_port: SecretBox<u16>,
 }
@@ -32,7 +41,7 @@ fn main() -> Result<(), procenv::Error> {
 
     // Debug output - secrets are automatically redacted
     println!("Debug output (secrets redacted):");
-    println!("{:?}\n", config);
+    println!("{config:?}\n");
 
     // Accessing regular field - just use it directly
     println!("Database URL: {}", config.db_url);

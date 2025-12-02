@@ -3,6 +3,8 @@
 //! Tests for `from_args()` method and CLI argument handling.
 //! Note: These tests verify CLI integration works correctly.
 
+#![allow(clippy::pedantic)]
+#![allow(clippy::approx_constant)] // Test uses specific float literals intentionally
 #![cfg(feature = "clap")]
 
 use procenv::EnvConfig;
@@ -82,7 +84,7 @@ fn test_cli_config_env_values_work() {
             assert_eq!(config.port, 3000);
             assert_eq!(config.debug, Some(true));
         },
-    )
+    );
 }
 
 // ============================================================================
@@ -123,7 +125,7 @@ fn test_cli_various_types_from_env() {
             assert!((config.float_val - 2.718).abs() < 0.001);
             assert!(config.bool_val);
         },
-    )
+    );
 }
 
 // ============================================================================
@@ -148,7 +150,7 @@ fn test_cli_required_field_from_env() {
         let config = CliRequiredConfig::from_env().expect("should load with required");
         assert_eq!(config.required_field, "provided");
         assert_eq!(config.optional_field, "default");
-    })
+    });
 }
 
 #[test]
@@ -188,7 +190,7 @@ fn test_cli_mixed_fields_from_env() {
             assert_eq!(config.cli_field, "from-env");
             assert_eq!(config.env_only_field, "also-env");
         },
-    )
+    );
 }
 
 // ============================================================================
@@ -217,7 +219,7 @@ fn test_cli_with_prefix_from_env() {
             assert_eq!(config.host, "prefixed.com");
             assert_eq!(config.port, 9000);
         },
-    )
+    );
 }
 
 // ============================================================================
@@ -243,12 +245,12 @@ fn test_cli_secret_field_loads() {
         assert_eq!(config.api_token, "super-secret-value");
 
         // Debug should redact secret
-        let debug_str = format!("{:?}", config);
+        let debug_str = format!("{config:?}");
         assert!(
             !debug_str.contains("super-secret-value"),
             "Debug should not contain secret"
         );
-    })
+    });
 }
 
 // ============================================================================
@@ -327,7 +329,7 @@ fn test_from_args_from_env_fallback() {
             assert_eq!(config.port, 5000); // from env
             assert!(!config.debug); // from default
         },
-    )
+    );
 }
 
 #[test]
@@ -369,7 +371,7 @@ fn test_from_args_from_with_sources() {
             "debug should be from Default or Environment, got {:?}",
             debug_source.source
         );
-    })
+    });
 }
 
 #[test]
@@ -383,11 +385,10 @@ fn test_from_args_from_invalid_args() {
     assert!(result.is_err(), "should fail with invalid arg");
 
     let err = result.unwrap_err();
-    let err_str = format!("{}", err);
+    let err_str = format!("{err}");
     assert!(
         err_str.contains("CLI") || err_str.contains("unexpected") || err_str.contains("invalid"),
-        "error should mention CLI issue: {}",
-        err_str
+        "error should mention CLI issue: {err_str}"
     );
 }
 
@@ -437,7 +438,7 @@ fn test_from_args_from_required_from_env() {
             ArgsRequiredConfig::from_args_from(["test"]).expect("should get required from env");
 
         assert_eq!(config.required_field, "env-required");
-    })
+    });
 }
 
 #[test]
@@ -517,7 +518,7 @@ fn test_from_args_from_priority_cli_over_env() {
 
         // CLI should take precedence over env
         assert_eq!(config.value, "cli-value");
-    })
+    });
 }
 
 #[test]
@@ -530,7 +531,7 @@ fn test_from_args_from_priority_env_over_default() {
 
         // Env should take precedence over default
         assert_eq!(config.value, "env-value");
-    })
+    });
 }
 
 #[test]

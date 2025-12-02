@@ -4,10 +4,19 @@
 //! environment variable overrides.
 //!
 //! Run with:
-//!   cargo run --example file_config --features file-all
+//!   `cargo run --example file_config --features file-all`
 //!
 //! Or with env override:
-//!   APP_PORT=9000 cargo run --example file_config --features file-all
+//!   `APP_PORT=9000 cargo run --example file_config --features file-all`
+
+#![allow(
+    unused,
+    dead_code,
+    clippy::no_effect_underscore_binding,
+    clippy::struct_field_names,
+    clippy::manual_strip,
+    clippy::result_large_err
+)]
 
 use procenv::ConfigBuilder;
 use serde::Deserialize;
@@ -82,7 +91,7 @@ fn main() {
             );
         }
         Err(e) => {
-            eprintln!("   Error loading config: {}", e);
+            eprintln!("   Error loading config: {e}");
         }
     }
 
@@ -108,7 +117,7 @@ fn main() {
             println!("   debug:    {} (from APP_DEBUG env)", config.debug);
         }
         Err(e) => {
-            eprintln!("   Error: {}", e);
+            eprintln!("   Error: {e}");
         }
     }
 
@@ -157,7 +166,7 @@ fn main() {
             );
         }
         Err(e) => {
-            eprintln!("   Error: {}", e);
+            eprintln!("   Error: {e}");
         }
     }
 

@@ -1,11 +1,19 @@
 //! Example: Generate .env.example file from config struct
 //!
 //! Run with:
-//!   cargo run --example env_example_gen
+//!   `cargo run --example env_example_gen`
 //!
 //! This will print the generated .env.example content to stdout.
 //! To save to a file:
-//!   cargo run --example env_example_gen > .env.example
+//!   `cargo run --example env_example_gen > .env.example`
+
+#![allow(
+    unused,
+    dead_code,
+    clippy::no_effect_underscore_binding,
+    clippy::struct_field_names,
+    clippy::manual_strip
+)]
 
 use procenv::EnvConfig;
 
@@ -58,7 +66,7 @@ struct AppConfig {
 fn main() {
     // Generate and print the .env.example content
     let example = AppConfig::env_example();
-    println!("{}", example);
+    println!("{example}");
 
     // You could also write it to a file:
     // std::fs::write(".env.example", example).expect("Failed to write .env.example");

@@ -70,7 +70,7 @@ pub struct RequiredField {
     pub profile: Option<ProfileAttr>,
 
     /// Deserialization format for structured data (Phase 17)
-    /// When set, uses serde deserialization instead of FromStr
+    /// When set, uses serde deserialization instead of `FromStr`
     pub format: Option<String>,
 
     /// Custom Validation function name
@@ -135,6 +135,10 @@ impl FieldGenerator for RequiredField {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "proc-macro code generation inherently requires verbose quote! blocks"
+    )]
     fn generate_loader_with_external_prefix(&self) -> QuoteStream {
         let name = &self.name;
         let ty = &self.ty;

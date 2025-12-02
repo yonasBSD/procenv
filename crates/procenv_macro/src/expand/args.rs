@@ -57,7 +57,7 @@ use crate::parse::EnvConfigAttr;
 
 use super::env::{generate_dotenv_load, generate_field_loader, generate_profile_setup};
 
-/// Generate the from_args() method for CLI argument integration.
+/// Generate the `from_args()` method for CLI argument integration.
 pub fn generate_from_args_impl(
     struct_name: &Ident,
     generators: &[Box<dyn FieldGenerator>],
@@ -95,7 +95,7 @@ pub fn generate_from_args_impl(
         generators.iter().map(|g| g.generate_assignment()).collect();
 
     // Dotenv loading
-    let dotenv_load = generate_dotenv_load(&env_config.dotenv);
+    let dotenv_load = generate_dotenv_load(env_config.dotenv.as_ref());
 
     let dotenv_loaded_flag = if env_config.dotenv.is_some() {
         quote! { let __dotenv_loaded = true; }

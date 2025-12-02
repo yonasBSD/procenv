@@ -3,6 +3,7 @@
 //! Tests for file loading, parsing errors, and format-specific edge cases.
 //! Each test uses a unique file path to avoid race conditions.
 
+#![allow(clippy::pedantic)]
 #![cfg(feature = "file-all")]
 
 use procenv::EnvConfig;
@@ -17,12 +18,12 @@ fn ensure_dir() {
 
 fn write_file(name: &str, content: &str) {
     ensure_dir();
-    let path = format!("{}/{}", BASE_DIR, name);
+    let path = format!("{BASE_DIR}/{name}");
     fs::write(&path, content).expect("Failed to write test file");
 }
 
 fn cleanup_file(name: &str) {
-    let path = format!("{}/{}", BASE_DIR, name);
+    let path = format!("{BASE_DIR}/{name}");
     let _ = fs::remove_file(&path);
 }
 
@@ -165,10 +166,10 @@ fn test_yaml_basic_loading() {
     cleanup_env(&["YAML_NAME", "YAML_PORT"]);
     cleanup_file("yaml_basic.yaml");
 
-    let content = r#"
+    let content = r"
 name: yaml-app
 port: 5000
-"#;
+";
     write_file("yaml_basic.yaml", content);
 
     #[derive(EnvConfig, Deserialize)]
@@ -197,12 +198,12 @@ fn test_yaml_multiline_strings() {
     cleanup_env(&["YAMLML_DESCRIPTION"]);
     cleanup_file("yaml_multiline.yaml");
 
-    let content = r#"
+    let content = r"
 description: |
   This is a multiline
   description that spans
   multiple lines.
-"#;
+";
     write_file("yaml_multiline.yaml", content);
 
     #[derive(EnvConfig, Deserialize)]
@@ -521,10 +522,10 @@ fn test_boolean_values_in_toml() {
     cleanup_env(&["BOOL_DEBUG", "BOOL_VERBOSE"]);
     cleanup_file("bool_test.toml");
 
-    let content = r#"
+    let content = r"
 debug = true
 verbose = false
-"#;
+";
     write_file("bool_test.toml", content);
 
     #[derive(EnvConfig, Deserialize)]

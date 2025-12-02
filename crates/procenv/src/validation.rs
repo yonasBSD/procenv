@@ -45,6 +45,7 @@
 
 use std::error::Error as StdError;
 use std::fmt::{self, Display, Formatter};
+use std::string::ToString;
 
 use miette::Diagnostic;
 
@@ -85,6 +86,7 @@ impl ValidationFieldError {
     }
 
     /// Add parameters to the error (e.g., "min: 1, max: 100").
+    #[must_use]
     pub fn with_params(mut self, params: impl Into<String>) -> Self {
         self.params = Some(params.into());
 
@@ -96,11 +98,10 @@ impl ValidationFieldError {
     /// Returns the custom message if set, otherwise generates a default
     /// message using the validation code.
     fn extract_message(error: &::validator::ValidationError) -> String {
-        error
-            .message
-            .as_ref()
-            .map(|m| m.to_string())
-            .unwrap_or_else(|| format!("validation failed: {}", error.code))
+        error.message.as_ref().map_or_else(
+            || format!("validation failed: {}", error.code),
+            ToString::to_string,
+        )
     }
 
     /// Extract validation parameters as a formatted string.
@@ -126,7 +127,7 @@ impl ValidationFieldError {
         }
     }
 
-    /// Create a ValidationFieldError from a validator error.
+    /// Create a `ValidationFieldError` from a validator error.
     fn from_validator_error(field: &str, error: &::validator::ValidationError) -> Self {
         let message = Self::extract_message(error);
         let params = Self::extract_params(error);
@@ -141,8 +142,9 @@ impl ValidationFieldError {
     }
 
     /// Convert validator crate errors to our error type.
+    #[must_use]
     pub fn validation_errors_to_procenv(
-        errors: ::validator::ValidationErrors,
+        errors: &::validator::ValidationErrors,
     ) -> Vec<ValidationFieldError> {
         // Collect flat field errors
         let flat_errors = errors
@@ -155,9 +157,9 @@ impl ValidationFieldError {
             });
 
         // Collect nested struct errors with prefixed field paths
-        let nested_errors = errors.errors().into_iter().filter_map(|(field, nested)| {
+        let nested_errors = errors.errors().iter().filter_map(|(field, nested)| {
             if let ::validator::ValidationErrorsKind::Struct(nested) = nested {
-                let nested_field_errors = Self::validation_errors_to_procenv(*nested.clone());
+                let nested_field_errors = Self::validation_errors_to_procenv(&nested.clone());
                 Some(nested_field_errors.into_iter().map(move |mut err| {
                     err.field = format!("{}.{}", field, err.field);
                     err
@@ -187,8 +189,9 @@ impl StdError for ValidationFieldError {}
 ///
 /// This is a convenience wrapper around [`ValidationFieldError::validation_errors_to_procenv`].
 /// It's exported at the crate root for use in generated code.
+#[must_use]
 pub fn validation_errors_to_procenv(
-    errors: ::validator::ValidationErrors,
+    errors: &::validator::ValidationErrors,
 ) -> Vec<ValidationFieldError> {
     ValidationFieldError::validation_errors_to_procenv(errors)
 }

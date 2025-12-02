@@ -103,7 +103,7 @@ impl Display for Source {
 
             Source::ConfigFile(None) => write!(f, "Config file"),
 
-            Source::Profile(name) => write!(f, "Profile ({})", name),
+            Source::Profile(name) => write!(f, "Profile ({name})"),
 
             Source::Default => write!(f, "Default value"),
 
@@ -214,6 +214,7 @@ pub struct ConfigSources {
 
 impl ConfigSources {
     /// Creates a new empty `ConfigSources` collection.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             entries: Vec::new(),
@@ -242,7 +243,7 @@ impl ConfigSources {
     /// * `nested` - Source entries from the nested config
     pub fn extend_nested(&mut self, prefix: &str, nested: ConfigSources) {
         for (field_name, source) in nested.entries {
-            let dotted_path = format!("{}.{}", prefix, field_name);
+            let dotted_path = format!("{prefix}.{field_name}");
             self.entries.push((dotted_path, source));
         }
     }
@@ -250,6 +251,7 @@ impl ConfigSources {
     /// Returns all entries as a slice.
     ///
     /// Each entry is a tuple of `(field_name, ValueSource)`.
+    #[must_use]
     pub fn entries(&self) -> &[(String, ValueSource)] {
         &self.entries
     }
@@ -261,6 +263,7 @@ impl ConfigSources {
     /// # Arguments
     ///
     /// * `field_name` - The field name to look up (e.g., `"db_url"` or `"database.port"`)
+    #[must_use]
     pub fn get(&self, field_name: &str) -> Option<&ValueSource> {
         self.entries
             .iter()

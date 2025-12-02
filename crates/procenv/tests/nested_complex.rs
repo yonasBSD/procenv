@@ -2,6 +2,9 @@
 //!
 //! Tests for deeply nested structs and complex configuration hierarchies.
 
+#![allow(clippy::pedantic)]
+#![allow(clippy::manual_strip)]
+
 use procenv::EnvConfig;
 use serial_test::serial;
 
@@ -87,7 +90,7 @@ fn test_two_level_nesting_override() {
             assert_eq!(config.inner.host, "db.example.com");
             assert_eq!(config.inner.port, 3306);
         },
-    )
+    );
 }
 
 // ============================================================================
@@ -157,7 +160,7 @@ fn test_multiple_siblings_selective_override() {
             assert_eq!(config.database.port, 5432);
             assert_eq!(config.cache.host, "localhost");
         },
-    )
+    );
 }
 
 // ============================================================================
@@ -194,7 +197,7 @@ fn test_nested_source_attribution() {
             "database.port should be Default, got {:?}",
             db_port_src.source
         );
-    })
+    });
 }
 
 // ============================================================================
@@ -246,7 +249,7 @@ fn test_nested_with_optional_fields() {
             assert!(config.child.optional.is_none());
             assert_eq!(config.child.defaulted, "default_val");
         },
-    )
+    );
 }
 
 #[test]
@@ -270,7 +273,7 @@ fn test_nested_with_optional_set() {
 
             assert_eq!(config.child.optional, Some("optional_val".to_string()));
         },
-    )
+    );
 }
 
 // ============================================================================
@@ -312,13 +315,13 @@ fn test_nested_secrets_redacted() {
 
             assert_eq!(config.database.password, "super-secret-password");
 
-            let debug = format!("{:?}", config);
+            let debug = format!("{config:?}");
             assert!(
                 !debug.contains("super-secret-password"),
                 "Debug should not contain secret"
             );
         },
-    )
+    );
 }
 
 // ============================================================================
@@ -373,7 +376,7 @@ fn test_three_level_override_deepest() {
         assert_eq!(config.value, "level1");
         assert_eq!(config.level2.value, "level2");
         assert_eq!(config.level2.level3.value, "custom_deep");
-    })
+    });
 }
 
 // ============================================================================
@@ -418,7 +421,7 @@ fn test_same_type_nested() {
             assert_eq!(config.endpoint.url, "https://api.example.com");
             assert_eq!(config.endpoint.timeout, 60);
         },
-    )
+    );
 }
 
 // ============================================================================
@@ -470,7 +473,7 @@ fn test_flatten_with_prefix_propagation() {
             assert_eq!(config.backup.url, "https://backup.example.com");
             assert_eq!(config.backup.timeout, 60);
         },
-    )
+    );
 }
 
 #[test]
@@ -502,7 +505,7 @@ fn test_flatten_prefix_uses_defaults() {
             assert_eq!(config.backup.url, "http://localhost"); // default
             assert_eq!(config.backup.timeout, 120);
         },
-    )
+    );
 }
 
 // Test flatten prefix without struct-level prefix
@@ -546,5 +549,5 @@ fn test_flatten_prefix_without_struct_prefix() {
             assert_eq!(config.fallback.url, "https://fallback.example.com");
             assert_eq!(config.fallback.timeout, 45);
         },
-    )
+    );
 }

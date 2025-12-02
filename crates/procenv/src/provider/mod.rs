@@ -1,10 +1,10 @@
 //! Provider abstraction for extensible configuration sources.
 //!
 //! This module defines the [`Provider`] trait that allows custom configuration
-//! sources like HashiCorp Vault, AWS Secrets Manager, or Consul to be integrated
+//! sources like Vault, AWS Secrets Manager, or Consul to be integrated
 //! with procenv's configuration loading system.
 //!
-//! # Built in Providers
+//! # Built-in Providers
 //!
 //! - [`EnvProvider`] - Loads from environment variables
 //! - [`DotenvProvider`] - Loads from `.env` files
@@ -133,6 +133,7 @@ pub struct ProviderValue {
 
 impl ProviderValue {
     /// Creates a new provider value.
+    #[must_use]
     pub fn new(value: impl Into<String>, source: ProviderSource) -> Self {
         Self {
             value: value.into(),
@@ -142,6 +143,7 @@ impl ProviderValue {
     }
 
     /// Marks this value as secret (will be masked in errors).
+    #[must_use]
     pub fn with_secret(mut self, secret: bool) -> Self {
         self.secret = secret;
 
@@ -172,6 +174,7 @@ pub enum ProviderSource {
 
 impl ProviderSource {
     /// Creates a custom provider source.
+    #[must_use]
     pub fn custom(provider: impl Into<String>, path: Option<String>) -> Self {
         Self::Custom {
             provider: provider.into(),
@@ -180,26 +183,31 @@ impl ProviderSource {
     }
 
     /// Creates a source from environment.
+    #[must_use]
     pub fn environment() -> Self {
         Self::BuiltIn(Source::Environment)
     }
 
     /// Creates a source from a config file.
+    #[must_use]
     pub fn config_file(path: Option<PathBuf>) -> Self {
         Self::BuiltIn(Source::ConfigFile(path))
     }
 
     /// Creates a source from a dotenv file.
+    #[must_use]
     pub fn dotenv_file(path: Option<PathBuf>) -> Self {
         Self::BuiltIn(Source::DotenvFile(path))
     }
 
     /// Creates a default source.
+    #[must_use]
     pub fn default_value() -> Self {
         Self::BuiltIn(Source::Default)
     }
 
     /// Converts this provider source to a [`Source`] for compatibility.
+    #[must_use]
     pub fn to_source(&self) -> Source {
         match self {
             ProviderSource::BuiltIn(s) => s.clone(),
@@ -241,7 +249,12 @@ pub enum ProviderError {
     /// The requested key was not found in this provider.
     #[error("key '{key}' not found in provider '{provider}'")]
     #[diagnostic(code(procenv::provider::not_found))]
-    NotFound { key: String, provider: String },
+    NotFound {
+        /// The key that was not found.
+        key: String,
+        /// The provider name.
+        provider: String,
+    },
 
     /// Provider connection or authentication error.
     #[error("provider '{provider}' connection error: {message}")]
@@ -250,8 +263,11 @@ pub enum ProviderError {
         help("check provider configuration and connectivity")
     )]
     Connection {
+        /// The provider name.
         provider: String,
+        /// The error message.
         message: String,
+        /// The underlying error source.
         #[source]
         source: Option<Box<dyn StdError + Send + Sync>>,
     },
@@ -260,8 +276,11 @@ pub enum ProviderError {
     #[error("invalid value for '{key}' from provider '{provider}': {message}")]
     #[diagnostic(code(procenv::provider::invalid_value))]
     InvalidValue {
+        /// The key with the invalid value.
         key: String,
+        /// The provider name.
         provider: String,
+        /// The error message.
         message: String,
     },
 
@@ -271,14 +290,22 @@ pub enum ProviderError {
         code(procenv::provider::unavailable),
         help("ensure the provider is properly configured and accessible")
     )]
-    Unavailable { provider: String, message: String },
+    Unavailable {
+        /// The provider name.
+        provider: String,
+        /// The error message.
+        message: String,
+    },
 
     /// Generic provider error.
     #[error("provider '{provider}' error: {message}")]
     #[diagnostic(code(procenv::provider::error))]
     Other {
+        /// The provider name.
         provider: String,
+        /// The error message.
         message: String,
+        /// The underlying error source.
         #[source]
         source: Option<Box<dyn StdError + Send + Sync>>,
     },
@@ -286,13 +313,14 @@ pub enum ProviderError {
 
 impl ProviderError {
     /// Returns the provider name from the error.
+    #[must_use]
     pub fn provider_name(&self) -> &str {
         match self {
-            ProviderError::NotFound { provider, .. } => provider,
-            ProviderError::Connection { provider, .. } => provider,
-            ProviderError::InvalidValue { provider, .. } => provider,
-            ProviderError::Unavailable { provider, .. } => provider,
-            ProviderError::Other { provider, .. } => provider,
+            ProviderError::NotFound { provider, .. }
+            | ProviderError::Connection { provider, .. }
+            | ProviderError::InvalidValue { provider, .. }
+            | ProviderError::Unavailable { provider, .. }
+            | ProviderError::Other { provider, .. } => provider,
         }
     }
 
@@ -343,7 +371,7 @@ pub type ProviderResult<T> = Result<Option<T>, ProviderError>;
 /// - Environment: 20
 /// - Dotenv: 30
 /// - Profile: 40
-/// - ConfigFile: 50
+/// - `ConfigFile`: 50
 /// - Custom providers: 100 (default)
 /// - Defaults: 1000
 ///
@@ -381,6 +409,10 @@ pub trait Provider: Send + Sync {
     /// - `Ok(Some(value))` if the key was found
     /// - `Ok(None)` if the key was not found (loader will try next provider)
     /// - `Err(e)` if an error occurred
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the provider encounters an error fetching the value.
     fn get(&self, key: &str) -> ProviderResult<ProviderValue>;
 
     /// Gets multiple configuration values in a single call.
@@ -390,12 +422,8 @@ pub trait Provider: Send + Sync {
     /// for each key.
     fn get_many(&self, keys: &[&str]) -> HashMap<String, ProviderResult<ProviderValue>> {
         keys.iter()
-            .map(
-                |k: &&str| -> (String, Result<Option<ProviderValue>, ProviderError>) {
-                    (k.to_string(), self.get(k))
-                },
-            )
-            .collect::<HashMap<String, ProviderResult<ProviderValue>>>()
+            .map(|k| ((*k).to_string(), self.get(k)))
+            .collect()
     }
 
     /// Checks if this provider is currently available.
@@ -480,13 +508,14 @@ pub trait AsyncProvider: Send + Sync {
         Box::pin(async move {
             let mut results = HashMap::new();
             for key in keys {
-                results.insert(key.to_string(), self.get(key).await);
+                results.insert((*key).to_string(), self.get(key).await);
             }
             results
         })
     }
 
     /// Checks if the provider is available asynchronously.
+    #[allow(clippy::elidable_lifetime_names)]
     fn is_available<'a>(&'a self) -> BoxFuture<'a, bool> {
         Box::pin(async { true })
     }
@@ -521,7 +550,7 @@ mod tests {
     }
 
     impl Provider for TestProvider {
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "test"
         }
 

@@ -1,4 +1,4 @@
-//! Field processing and code generation for EnvConfig derive macro.
+//! Field processing and code generation for `EnvConfig` derive macro.
 //!
 //! This module is the heart of the code generation logic. It classifies
 //! struct fields based on their attributes and generates appropriate
@@ -227,7 +227,7 @@ pub trait FieldGenerator {
 
     /// Returns the field's type as a string for error messages.
     ///
-    /// Used for CLI parse errors to show "expected u16" instead of "expected ParseIntError".
+    /// Used for CLI parse errors to show "expected u16" instead of "expected `ParseIntError`".
     fn type_name(&self) -> String;
 
     /// Whether this field is marked as secret.
@@ -236,7 +236,7 @@ pub trait FieldGenerator {
     /// ("<redacted>") to prevent accidental exposure of sensitive data.
     fn is_secret(&self) -> bool;
 
-    /// Whether this field uses a secrecy crate type (SecretString, SecretBox).
+    /// Whether this field uses a secrecy crate type (`SecretString`, `SecretBox`).
     ///
     /// When true, the expander skips generating custom Debug field entries
     /// because secrecy types handle their own Debug redaction.
@@ -250,10 +250,10 @@ pub trait FieldGenerator {
     /// For flattened fields, returns an empty vec (handled specially).
     fn example_entries(&self) -> Vec<EnvExampleEntry>;
 
-    /// Generate code fragment for env_example() method.
+    /// Generate code fragment for `env_example()` method.
     ///
     /// For regular fields, returns a string literal with the formatted entry.
-    /// For flattened fields, returns a call to the nested type's env_example().
+    /// For flattened fields, returns a call to the nested type's `env_example()`.
     fn generate_example_fragment(&self) -> QuoteStream {
         // Default implementation for regular fields
         let entries = self.example_entries();
@@ -261,7 +261,7 @@ pub trait FieldGenerator {
             return quote! {};
         }
 
-        let formatted: Vec<String> = entries.iter().map(|e| e.format()).collect();
+        let formatted: Vec<String> = entries.iter().map(EnvExampleEntry::format).collect();
         let combined = formatted.join("\n");
         quote! { #combined }
     }
@@ -269,7 +269,7 @@ pub trait FieldGenerator {
     /// Generate format-aware loader using serde deserialization.
     ///
     /// This is like `generate_loader()` but sues serde (json/toml/yaml)
-    /// instead of FromStr. Each field type implements this to maintain
+    /// instead of `FromStr`. Each field type implements this to maintain
     /// proper optional/default/required semantics.
     fn generate_format_loader(&self, format: &str) -> QuoteStream {
         // Default implementation for fields that don't override.
@@ -464,7 +464,7 @@ impl FieldFactory {
                 Some(field_prefix) => {
                     // Combine struct prefix (if any) with the flatten prefix
                     match prefix {
-                        Some(struct_prefix) => Some(format!("{}{}", struct_prefix, field_prefix)),
+                        Some(struct_prefix) => Some(format!("{struct_prefix}{field_prefix}")),
                         None => Some(field_prefix),
                     }
                 }

@@ -33,6 +33,8 @@
 //! When `profile_env` is configured, the generated code reads the profile
 //! from an environment variable and uses profile-specific defaults.
 
+use std::string::String;
+
 use proc_macro2::TokenStream as QuoteStream;
 use quote::{format_ident, quote};
 use syn::{Generics, Ident};
@@ -46,7 +48,7 @@ use crate::parse::{DotenvConfig, EnvConfigAttr};
 /// 1. Optionally loads .env file(s) if configured
 /// 2. Reads and validates profile if configured
 /// 3. Creates an error accumulator vector
-/// 4. Loads each field (calling each FieldGenerator's `generate_loader()`)
+/// 4. Loads each field (calling each `FieldGenerator`'s `generate_loader()`)
 /// 5. If any errors occurred, returns the (single or Multiple variant)
 /// 6. Otherwise constructs and returns the struct
 pub fn generate_from_env_impl(
@@ -68,7 +70,7 @@ pub fn generate_from_env_impl(
     let assignments: Vec<QuoteStream> = fields.iter().map(|f| f.generate_assignment()).collect();
 
     // Generate dotenv loading code (if configured)
-    let dotenv_load = generate_dotenv_load(&env_config_attr.dotenv);
+    let dotenv_load = generate_dotenv_load(env_config_attr.dotenv.as_ref());
 
     // Generate profile setup code (if configured)
     let profile_setup = generate_profile_setup(env_config_attr);
@@ -129,7 +131,7 @@ pub fn generate_profile_setup(env_config_attr: &EnvConfigAttr) -> QuoteStream {
 
     // Generate profile validation if profiles list is provided
     let validation = if let Some(profiles) = &env_config_attr.profiles {
-        let profile_strs: Vec<&str> = profiles.iter().map(|s| s.as_str()).collect();
+        let profile_strs: Vec<&str> = profiles.iter().map(String::as_str).collect();
         quote! {
             // Validate profile against allowed list
             if let std::option::Option::Some(ref p) = __profile {
@@ -285,7 +287,7 @@ pub fn generate_field_loader(
 }
 
 /// Generate code to load .env file(s) based on configuration.
-pub fn generate_dotenv_load(dotenv_config: &Option<DotenvConfig>) -> QuoteStream {
+pub fn generate_dotenv_load(dotenv_config: Option<&DotenvConfig>) -> QuoteStream {
     match dotenv_config {
         None => quote! {},
 
@@ -347,7 +349,7 @@ pub fn generate_from_env_with_external_prefix_impl(
         generators.iter().map(|g| g.generate_assignment()).collect();
 
     // Dotenv loading
-    let dotenv_load = generate_dotenv_load(&env_config.dotenv);
+    let dotenv_load = generate_dotenv_load(env_config.dotenv.as_ref());
 
     let dotenv_loaded_flag = if env_config.dotenv.is_some() {
         quote! { let __dotenv_loaded = true; }
@@ -419,7 +421,7 @@ pub fn generate_from_env_with_external_prefix_impl(
     }
 }
 
-/// Generate simplified source tracking for __from_env_with_external_prefix.
+/// Generate simplified source tracking for `__from_env_with_external_prefix`.
 fn generate_simple_source_tracking(field: &dyn FieldGenerator) -> QuoteStream {
     let name = field.name();
     let name_str = name.to_string();
@@ -468,6 +470,10 @@ fn generate_simple_source_tracking(field: &dyn FieldGenerator) -> QuoteStream {
 /// This is used by `__from_env_with_external_prefix` for flattened/nested structs.
 /// It handles all the same features as `generate_field_loader` but uses the
 /// prefixed env var names.
+#[expect(
+    clippy::too_many_lines,
+    reason = "proc-macro code generation inherently requires verbose quote! blocks"
+)]
 fn generate_field_loader_with_prefix(field: &dyn FieldGenerator) -> QuoteStream {
     // Flatten fields delegate to nested type
     if field.is_flatten() {

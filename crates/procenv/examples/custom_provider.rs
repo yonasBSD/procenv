@@ -2,10 +2,10 @@
 //!
 //! This example demonstrates how to create a custom provider
 //! that could fetch configuration from an external source
-//! like HashiCorp Vault, AWS Secrets Manager, or a database.
+//! like `Vault`, AWS Secrets Manager, or a database.
 //!
 //! Run with:
-//!   cargo run --example custom_provider
+//!   `cargo run --example custom_provider`
 
 use procenv::ConfigLoader;
 use procenv::provider::{Provider, ProviderResult, ProviderSource, ProviderValue};
@@ -13,7 +13,7 @@ use std::collections::HashMap;
 
 /// A mock "Vault" provider for demonstration.
 ///
-/// In a real implementation, this would connect to HashiCorp Vault
+/// In a real implementation, this would connect to Vault
 /// and fetch secrets from a specific path.
 struct VaultProvider {
     /// Simulated secrets storage
@@ -40,30 +40,27 @@ impl VaultProvider {
 }
 
 impl Provider for VaultProvider {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "vault"
     }
 
     fn get(&self, key: &str) -> ProviderResult<ProviderValue> {
-        println!("  [Vault] Looking up: {}", key);
+        println!("  [Vault] Looking up: {key}");
 
-        match self.secrets.get(key) {
-            Some(value) => {
-                println!("  [Vault] Found secret for: {}", key);
-                Ok(Some(ProviderValue {
-                    value: value.clone(),
-                    source: ProviderSource::custom(
-                        "vault",
-                        Some(format!("{}/{}", self.path_prefix, key)),
-                    ),
-                    // Mark secrets from Vault as sensitive
-                    secret: true,
-                }))
-            }
-            None => {
-                println!("  [Vault] No secret found for: {}", key);
-                Ok(None)
-            }
+        if let Some(value) = self.secrets.get(key) {
+            println!("  [Vault] Found secret for: {key}");
+            Ok(Some(ProviderValue {
+                value: value.clone(),
+                source: ProviderSource::custom(
+                    "vault",
+                    Some(format!("{}/{}", self.path_prefix, key)),
+                ),
+                // Mark secrets from Vault as sensitive
+                secret: true,
+            }))
+        } else {
+            println!("  [Vault] No secret found for: {key}");
+            Ok(None)
         }
     }
 

@@ -1,25 +1,34 @@
-//! Example: EnvConfig with validator integration
+//! Example: `EnvConfig` with validator integration
 //!
 //! This demonstrates the `#[env_config(validate)]` attribute which automatically
 //! runs validator crate validation after loading environment variables.
 //!
 //! Run with valid config:
-//!   DATABASE_URL=postgres://localhost/mydb \
+//!   `DATABASE_URL=postgres://localhost/mydb \
 //!   ADMIN_EMAIL=admin@example.com \
 //!   PORT=8080 \
 //!   MAX_WORKERS=4 \
-//!   cargo run --package procenv --example validator_example --features validator
+//!   cargo run --package procenv --example validator_example --features validator`
 //!
 //! Run with invalid email (validation error):
-//!   DATABASE_URL=postgres://localhost/mydb \
+//!   `DATABASE_URL=postgres://localhost/mydb \
 //!   ADMIN_EMAIL=not-an-email \
-//!   cargo run --package procenv --example validator_example --features validator
+//!   cargo run --package procenv --example validator_example --features validator`
 //!
 //! Run with port out of range (validation error):
-//!   DATABASE_URL=postgres://localhost/mydb \
+//!   `DATABASE_URL=postgres://localhost/mydb \
 //!   ADMIN_EMAIL=admin@example.com \
 //!   PORT=99999 \
-//!   cargo run --package procenv --example validator_example --features validator
+//!   cargo run --package procenv --example validator_example --features validator`
+
+#![allow(
+    unused,
+    dead_code,
+    clippy::no_effect_underscore_binding,
+    clippy::struct_field_names,
+    clippy::manual_strip,
+    clippy::result_large_err
+)]
 
 use procenv::EnvConfig;
 use validator::Validate;

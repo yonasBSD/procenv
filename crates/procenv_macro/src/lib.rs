@@ -1,4 +1,4 @@
-//! # procenv_macro
+//! # `procenv_macro`
 //!
 //! Procedural macro implementation for the `procenv` crate.
 //!
@@ -163,5 +163,5 @@ pub fn derive_env_config(input: TokenStream) -> TokenStream {
 
     // Delegate to the Expander which orchestrates code generation
     // On error, convert to a compile_error!() invocation for better error messages
-    expand::Expander::expand(input).unwrap_or_else(|err| err.to_compile_error().into())
+    expand::Expander::expand(&input).unwrap_or_else(|err| err.to_compile_error().into())
 }

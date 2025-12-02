@@ -46,14 +46,26 @@ fn parse_file(path: &str) -> Result<Value, Box<dyn std::error::Error>> {
     let content = fs::read_to_string(path)?;
 
     // Detect format from extension
-    if path.ends_with(".toml") {
+    if std::path::Path::new(path)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"))
+    {
         // toml -> Value
         let toml_value: toml::Value = toml::from_str(&content)?;
         Ok(toml_to_json(toml_value))
-    } else if path.ends_with(".json") {
+    } else if std::path::Path::new(path)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+    {
         // json -> Value (already native!)
         Ok(serde_json::from_str(&content)?)
-    } else if path.ends_with(".yaml") || path.ends_with(".yml") {
+    } else if std::path::Path::new(path)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("yaml"))
+        || std::path::Path::new(path)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("yml"))
+    {
         // yaml -> Value
         // Would need: serde_yaml = "0.9"
         // let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)?;
@@ -121,10 +133,10 @@ fn coerce_value(s: &str) -> Value {
     }
 
     // Try float
-    if let Ok(f) = s.parse::<f64>() {
-        if let Some(n) = serde_json::Number::from_f64(f) {
-            return Value::Number(n);
-        }
+    if let Ok(f) = s.parse::<f64>()
+        && let Some(n) = serde_json::Number::from_f64(f)
+    {
+        return Value::Number(n);
     }
 
     // Keep as string
@@ -212,11 +224,11 @@ fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
 
     // Layer 3: Environment variables override everything
     let env_config = env_to_value("APP_", "_");
-    if let Value::Object(map) = &env_config {
-        if !map.is_empty() {
-            println!("Loaded {} env var overrides", map.len());
-            deep_merge(&mut merged, env_config);
-        }
+    if let Value::Object(map) = &env_config
+        && !map.is_empty()
+    {
+        println!("Loaded {} env var overrides", map.len());
+        deep_merge(&mut merged, env_config);
     }
 
     // Final: Deserialize merged Value into Config struct
@@ -242,10 +254,11 @@ fn main() {
 
     match load_config() {
         Ok(config) => {
-            println!("\nFinal config: {:#?}", config);
+            println!("\nFinal config: {config:#?}");
         }
+
         Err(e) => {
-            println!("Error: {}", e);
+            println!("Error: {e}");
         }
     }
 

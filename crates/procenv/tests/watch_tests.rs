@@ -2,6 +2,8 @@
 //!
 //! These tests verify the file watching and automatic reload behavior.
 
+#![allow(clippy::pedantic)]
+#![allow(clippy::manual_strip)]
 #![cfg(feature = "watch")]
 
 use std::fs;
@@ -26,6 +28,7 @@ struct SimpleConfig {
     host: String,
 }
 
+#[allow(dead_code)] // Reserved for future secret handling tests
 #[derive(EnvConfig, Clone)]
 struct ConfigWithSecret {
     #[env(var = "API_KEY", secret)]

@@ -101,7 +101,7 @@ pub fn generate_validated_impl(
                 let mut __validation_errors: Vec<::procenv::ValidationFieldError> = Vec::new();
 
                 if let Err(e) = ::procenv::Validate::validate(&__config) {
-                    __validation_errors.extend(::procenv::validation_errors_to_procenv(e));
+                    __validation_errors.extend(::procenv::validation_errors_to_procenv(&e));
                 }
 
                 #(#custom_validations)*
@@ -121,7 +121,7 @@ pub fn generate_validated_impl(
                 let mut __validation_errors: Vec<::procenv::ValidationFieldError> = Vec::new();
 
                 if let Err(e) = ::procenv::Validate::validate(&__config) {
-                    __validation_errors.extend(::procenv::validation_errors_to_procenv(e));
+                    __validation_errors.extend(::procenv::validation_errors_to_procenv(&e));
                 }
 
                 #(#custom_validations)*
@@ -184,7 +184,7 @@ pub fn generate_from_config_validated_impl(
                 let mut __validation_errors: Vec<::procenv::ValidationFieldError> = Vec::new();
 
                 if let Err(e) = ::procenv::Validate::validate(&__config) {
-                    __validation_errors.extend(::procenv::validation_errors_to_procenv(e));
+                    __validation_errors.extend(::procenv::validation_errors_to_procenv(&e));
                 }
 
                 #(#custom_validations)*
@@ -207,7 +207,7 @@ pub fn generate_from_config_validated_impl(
                 let mut __validation_errors: Vec<::procenv::ValidationFieldError> = Vec::new();
 
                 if let Err(e) = ::procenv::Validate::validate(&__config) {
-                    __validation_errors.extend(::procenv::validation_errors_to_procenv(e));
+                    __validation_errors.extend(::procenv::validation_errors_to_procenv(&e));
                 }
 
                 #(#custom_validations)*

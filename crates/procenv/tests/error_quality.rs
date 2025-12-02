@@ -2,6 +2,8 @@
 //!
 //! Ensures error messages are actionable and helpful.
 
+#![allow(clippy::pedantic)]
+
 use procenv::{EnvConfig, Error};
 use serial_test::serial;
 
@@ -51,7 +53,7 @@ fn test_missing_error_contains_var_name() {
 
     let result = MissingErrorConfig::from_env();
     let err = result.unwrap_err();
-    let display = format!("{}", err);
+    let display = format!("{err}");
 
     assert!(
         display.contains("ERR_DATABASE_URL"),
@@ -66,7 +68,7 @@ fn test_missing_error_has_help_text() {
 
     let result = MissingErrorConfig::from_env();
     let err = result.unwrap_err();
-    let display = format!("{}", err);
+    let display = format!("{err}");
 
     // Should have actionable help
     assert!(
@@ -91,13 +93,13 @@ fn test_parse_error_contains_var_name() {
     with_env(&[("ERR_PORT", "not_a_number")], || {
         let result = ParseErrorConfig::from_env();
         let err = result.unwrap_err();
-        let display = format!("{}", err);
+        let display = format!("{err}");
 
         assert!(
             display.contains("ERR_PORT"),
             "Parse error should contain var name: {display}"
         );
-    })
+    });
 }
 
 #[test]
@@ -106,13 +108,13 @@ fn test_parse_error_shows_actual_value() {
     with_env(&[("ERR_PORT", "not_a_number")], || {
         let result = ParseErrorConfig::from_env();
         let err = result.unwrap_err();
-        let display = format!("{}", err);
+        let display = format!("{err}");
 
         assert!(
             display.contains("not_a_number"),
             "Parse error should show actual value: {display}"
         );
-    })
+    });
 }
 
 #[test]
@@ -121,13 +123,13 @@ fn test_parse_error_shows_expected_type() {
     with_env(&[("ERR_PORT", "not_a_number")], || {
         let result = ParseErrorConfig::from_env();
         let err = result.unwrap_err();
-        let display = format!("{}", err);
+        let display = format!("{err}");
 
         assert!(
             display.contains("u16") || display.contains("integer") || display.contains("number"),
             "Parse error should indicate expected type: {display}"
         );
-    })
+    });
 }
 
 // ============================================================================
@@ -147,7 +149,7 @@ fn test_debug_redacts_secret_value() {
     with_env(&[("ERR_SECRET", "my-super-secret-key")], || {
         let config = SecretErrorConfig::from_env().expect("string should parse");
         // Verify debug output redacts secret
-        let debug = format!("{:?}", config);
+        let debug = format!("{config:?}");
 
         assert!(
             !debug.contains("my-super-secret-key"),
@@ -157,7 +159,7 @@ fn test_debug_redacts_secret_value() {
             debug.contains("***") || debug.contains("[redacted]") || debug.contains("REDACTED"),
             "Debug should show redaction marker: {debug}"
         );
-    })
+    });
 }
 
 #[derive(EnvConfig)]
@@ -173,7 +175,7 @@ fn test_secret_parse_error_redacts_value() {
     with_env(&[("ERR_SECRET_NUM", "secret_value_123")], || {
         let result = SecretParseErrorConfig::from_env();
         let err = result.unwrap_err();
-        let display = format!("{}", err);
+        let display = format!("{err}");
 
         // Should NOT leak the actual secret value
         assert!(
@@ -189,7 +191,7 @@ fn test_secret_parse_error_redacts_value() {
                 || display.contains("REDACTED"),
             "Parse error should show redaction for secret: {display}"
         );
-    })
+    });
 }
 
 // ============================================================================
@@ -215,10 +217,10 @@ fn test_multiple_errors_shows_count() {
 
     let result = MultipleErrorConfig::from_env();
     let err = result.unwrap_err();
-    let display = format!("{}", err);
+    let display = format!("{err}");
 
     assert!(
-        display.contains("3") || display.contains("multiple") || display.contains("errors"),
+        display.contains('3') || display.contains("multiple") || display.contains("errors"),
         "Multiple error should indicate count: {display}"
     );
 }
@@ -236,7 +238,7 @@ fn test_multiple_errors_is_multiple_variant() {
         Error::Multiple { errors } => {
             assert_eq!(errors.len(), 3, "Should have 3 errors");
         }
-        other => panic!("Expected Multiple error, got: {:?}", other),
+        other => panic!("Expected Multiple error, got: {other:?}"),
     }
 }
 
@@ -269,7 +271,7 @@ fn test_error_is_parse_variant() {
             matches!(err, Error::Parse { .. }),
             "Should be Parse variant"
         );
-    })
+    });
 }
 
 #[test]
@@ -319,7 +321,7 @@ fn test_parse_error_has_diagnostic_code() {
 
         let code = err.code();
         assert!(code.is_some(), "Parse error should have diagnostic code");
-    })
+    });
 }
 
 #[test]
@@ -351,11 +353,11 @@ fn test_error_display_is_stable() {
 
     let result1 = MissingErrorConfig::from_env();
     let err1 = result1.unwrap_err();
-    let display1 = format!("{}", err1);
+    let display1 = format!("{err1}");
 
     let result2 = MissingErrorConfig::from_env();
     let err2 = result2.unwrap_err();
-    let display2 = format!("{}", err2);
+    let display2 = format!("{err2}");
 
     assert_eq!(
         display1, display2,

@@ -96,7 +96,7 @@ pub enum MaybeRedacted {
 }
 
 impl MaybeRedacted {
-    /// Create a new MaybeRedacted value.
+    /// Create a new `MaybeRedacted` value.
     ///
     /// If `is_secret` is true, the value is discarded and replaced with `Redacted`.
     /// The original value is never stored.
@@ -111,6 +111,7 @@ impl MaybeRedacted {
     /// Get the value if it's not redacted.
     ///
     /// Returns `None` for secret values, ensuring they cannot be accidentally exposed.
+    #[must_use]
     pub fn as_str(&self) -> Option<&str> {
         match self {
             MaybeRedacted::Plain(s) => Some(s),
@@ -119,6 +120,7 @@ impl MaybeRedacted {
     }
 
     /// Check if the value is redacted (was marked as secret).
+    #[must_use]
     pub fn is_redacted(&self) -> bool {
         matches!(self, MaybeRedacted::Redacted)
     }
@@ -127,7 +129,7 @@ impl MaybeRedacted {
 impl Debug for MaybeRedacted {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            MaybeRedacted::Plain(s) => write!(f, "{:?}", s),
+            MaybeRedacted::Plain(s) => write!(f, "{s:?}"),
             MaybeRedacted::Redacted => write!(f, "<redacted>"),
         }
     }
@@ -136,7 +138,7 @@ impl Debug for MaybeRedacted {
 impl Display for MaybeRedacted {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            MaybeRedacted::Plain(s) => write!(f, "{:?}", s),
+            MaybeRedacted::Plain(s) => write!(f, "{s:?}"),
             MaybeRedacted::Redacted => write!(f, "<redacted>"),
         }
     }
@@ -232,7 +234,7 @@ pub enum Error {
         /// The expected type name (for diagnostic messages).
         expected_type: String,
 
-        /// Dynamic help text generated based on expected_type.
+        /// Dynamic help text generated based on `expected_type`.
         #[help]
         help: String,
 
@@ -240,7 +242,7 @@ pub enum Error {
         ///
         /// Note: We use a plain field (not `#[diagnostic_source]`) because std
         /// parse errors don't implement Diagnostic. The error chain is still
-        /// displayed via std::error::Error::source() when using miette::Report.
+        /// displayed via `std::error::Error::source()` when using `miette::Report`.
         source: Box<dyn StdError + Send + Sync>,
     },
 
@@ -262,7 +264,7 @@ pub enum Error {
     /// An error occurred while loading a configuration file.
     ///
     /// This variant wraps `FileError` with diagnostic transparency,
-    /// so miette will display the rich source-code snippets from FileError.
+    /// so miette will display the rich source-code snippets from `FileError`.
     #[cfg(feature = "file")]
     #[diagnostic(transparent)]
     File {
@@ -381,11 +383,11 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Error::Missing { var, .. } => {
-                write!(f, "missing required environment variable: {}", var)
+                write!(f, "missing required environment variable: {var}")
             }
 
             Error::InvalidUtf8 { var } => {
-                write!(f, "environment variable {} contains invalid UTF-8", var)
+                write!(f, "environment variable {var} contains invalid UTF-8")
             }
 
             Error::Parse {
@@ -397,8 +399,7 @@ impl Display for Error {
                 // MaybeRedacted's Display handles redaction automatically
                 write!(
                     f,
-                    "failed to parse {}: expected {}, got {}",
-                    var, expected_type, value
+                    "failed to parse {var}: expected {expected_type}, got {value}"
                 )
             }
 
@@ -408,11 +409,11 @@ impl Display for Error {
 
             #[cfg(feature = "file")]
             Error::File { source } => {
-                write!(f, "configuration file error: {}", source)
+                write!(f, "configuration file error: {source}")
             }
 
             Error::InvalidProfile { profile, var, .. } => {
-                write!(f, "invalid profile '{}' for {}", profile, var)
+                write!(f, "invalid profile '{profile}' for {var}")
             }
 
             Error::Provider {
@@ -428,11 +429,11 @@ impl Display for Error {
 
             #[cfg(feature = "clap")]
             Error::Cli { message } => {
-                write!(f, "CLI argument error: {}", message)
+                write!(f, "CLI argument error: {message}")
             }
 
             Error::KeyNotFound { key, .. } => {
-                write!(f, "configuration key not found: {}", key)
+                write!(f, "configuration key not found: {key}")
             }
 
             Error::TypeMismatch {
@@ -443,8 +444,7 @@ impl Display for Error {
             } => {
                 write!(
                     f,
-                    "type mismatch for '{}': expected {}, found {}",
-                    key, expected, found
+                    "type mismatch for '{key}': expected {expected}, found {found}"
                 )
             }
         }
@@ -458,6 +458,7 @@ impl Display for Error {
 // For the full miette experience with colors and source spans, use:
 // `eprintln!("{:?}", miette::Report::from(e));`
 impl Debug for Error {
+    #[expect(clippy::too_many_lines)]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Error::Missing { var, help } => {
@@ -598,13 +599,13 @@ impl Error {
     /// `&str`, `String`, or runtime-constructed var names.
     pub fn missing(var: impl Into<String>) -> Self {
         let var = var.into();
-        let help = format!("set {} in your environment or .env file", var);
+        let help = format!("set {var} in your environment or .env file");
         Error::Missing { var, help }
     }
 
     /// Creates a Parse error with appropriate help text.
     ///
-    /// Accepts any type that can be converted to String for var and expected_type,
+    /// Accepts any type that can be converted to String for var and `expected_type`,
     /// allowing runtime-constructed var names and type names.
     ///
     /// # Security
@@ -622,7 +623,7 @@ impl Error {
     ) -> Self {
         let var = var.into();
         let expected_type = expected_type.into();
-        let help = format!("expected a valid {}", expected_type);
+        let help = format!("expected a valid {expected_type}");
         Error::Parse {
             var,
             value: MaybeRedacted::new(value, secret),
@@ -634,6 +635,7 @@ impl Error {
 
     /// Collects multiple errors into a single Multiple error.
     /// Returns None if the input is empty.
+    #[must_use]
     pub fn multiple(errors: Vec<Error>) -> Option<Self> {
         if errors.is_empty() {
             None
@@ -645,7 +647,8 @@ impl Error {
         }
     }
 
-    /// Creates an InvalidProfile error.
+    /// Creates an `InvalidProfile` error.
+    #[must_use]
     pub fn invalid_profile(
         profile: String,
         var: &'static str,
@@ -655,12 +658,12 @@ impl Error {
         Error::InvalidProfile {
             profile,
             var,
-            help: format!("valid profiles are: {}", valid_list),
+            help: format!("valid profiles are: {valid_list}"),
             valid_profiles,
         }
     }
 
-    /// Creates a KeyNotFound error.
+    /// Creates a `KeyNotFound` error.
     pub fn key_not_found(key: impl Into<String>, available: Vec<String>) -> Self {
         let available_str = if available.is_empty() {
             "none".to_string()
@@ -669,12 +672,12 @@ impl Error {
         };
         Error::KeyNotFound {
             key: key.into(),
-            help: format!("available keys: {}", available_str),
+            help: format!("available keys: {available_str}"),
             available,
         }
     }
 
-    /// Creates a TypeMismatch error.
+    /// Creates a `TypeMismatch` error.
     pub fn type_mismatch(
         key: impl Into<String>,
         expected: &'static str,
@@ -684,10 +687,7 @@ impl Error {
             key: key.into(),
             expected,
             found,
-            help: format!(
-                "the value is stored as {}, try accessing it as that type",
-                found
-            ),
+            help: format!("the value is stored as {found}, try accessing it as that type"),
         }
     }
 }
@@ -768,14 +768,14 @@ mod tests {
         }
 
         // Debug should not contain the secret
-        let debug = format!("{:?}", err);
+        let debug = format!("{err:?}");
         assert!(
             !debug.contains(secret_value),
             "Debug should not contain secret"
         );
 
         // Display should not contain the secret
-        let display = format!("{}", err);
+        let display = format!("{err}");
         assert!(
             !display.contains(secret_value),
             "Display should not contain secret"
@@ -787,7 +787,7 @@ mod tests {
         let plain = MaybeRedacted::new("visible", false);
         assert_eq!(plain.as_str(), Some("visible"));
         assert!(!plain.is_redacted());
-        assert!(format!("{:?}", plain).contains("visible"));
+        assert!(format!("{plain:?}").contains("visible"));
     }
 
     #[test]
@@ -795,8 +795,8 @@ mod tests {
         let secret = MaybeRedacted::new("hidden", true);
         assert_eq!(secret.as_str(), None);
         assert!(secret.is_redacted());
-        assert!(!format!("{:?}", secret).contains("hidden"));
-        assert!(format!("{:?}", secret).contains("<redacted>"));
+        assert!(!format!("{secret:?}").contains("hidden"));
+        assert!(format!("{secret:?}").contains("<redacted>"));
     }
 
     #[test]

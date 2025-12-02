@@ -63,6 +63,7 @@ impl<T: Clone + Send + Sync + 'static> WatchBuilder<T> {
     /// - No files watched
     /// - 100ms debounce
     /// - No callbacks
+    #[must_use]
     pub fn new() -> Self {
         Self {
             files: Vec::new(),
@@ -88,6 +89,7 @@ impl<T: Clone + Send + Sync + 'static> WatchBuilder<T> {
     ///     .watch_file("config.toml")
     ///     .watch_file("secrets.toml")
     /// ```
+    #[must_use]
     pub fn watch_file(mut self, path: impl AsRef<Path>) -> Self {
         self.files.push(path.as_ref().to_path_buf());
         self
@@ -101,6 +103,7 @@ impl<T: Clone + Send + Sync + 'static> WatchBuilder<T> {
     /// WatchBuilder::new()
     ///     .watch_files(["config.toml", "local.toml", "secrets.toml"])
     /// ```
+    #[must_use]
     pub fn watch_files<P: AsRef<Path>>(mut self, paths: impl IntoIterator<Item = P>) -> Self {
         self.files
             .extend(paths.into_iter().map(|p| p.as_ref().to_path_buf()));
@@ -123,6 +126,7 @@ impl<T: Clone + Send + Sync + 'static> WatchBuilder<T> {
     /// WatchBuilder::new()
     ///     .debounce(Duration::from_millis(200))
     /// ```
+    #[must_use]
     pub fn debounce(mut self, duration: Duration) -> Self {
         self.debounce = duration;
         self
@@ -147,6 +151,7 @@ impl<T: Clone + Send + Sync + 'static> WatchBuilder<T> {
     ///         }
     ///     })
     /// ```
+    #[must_use]
     pub fn on_change<F>(mut self, callback: F) -> Self
     where
         F: Fn(ConfigChange<T>) + Send + Sync + 'static,
@@ -173,6 +178,7 @@ impl<T: Clone + Send + Sync + 'static> WatchBuilder<T> {
     ///         // Log to monitoring system, etc.
     ///     })
     /// ```
+    #[must_use]
     pub fn on_error<F>(mut self, callback: F) -> Self
     where
         F: Fn(WatchError) + Send + Sync + 'static,
@@ -231,7 +237,7 @@ impl<T: Clone + Send + Sync + 'static> WatchBuilder<T> {
         };
 
         let watcher =
-            ConfigWatcher::start(initial_config, initial_sources, watcher_config, reload_fn)?;
+            ConfigWatcher::start(initial_config, initial_sources, &watcher_config, reload_fn)?;
 
         Ok(ConfigHandle::new(watcher, self.on_change, self.on_error))
     }

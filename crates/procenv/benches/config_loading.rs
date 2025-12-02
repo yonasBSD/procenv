@@ -7,6 +7,13 @@
 //! - `figment` - Layered configuration library
 //! - `config` - Hierarchical configuration library
 
+#![allow(
+    unused,
+    dead_code,
+    clippy::no_effect_underscore_binding,
+    clippy::struct_field_names,
+    clippy::manual_strip
+)]
 use procenv::EnvConfig;
 use serde::Deserialize;
 
@@ -37,7 +44,7 @@ fn setup_env() {
 
         // Large config vars (50 fields)
         for i in 0..50 {
-            std::env::set_var(format!("LARGE_FIELD_{}", i), format!("value_{}", i));
+            std::env::set_var(format!("LARGE_FIELD_{i}"), format!("value_{i}"));
         }
 
         // Nested config vars

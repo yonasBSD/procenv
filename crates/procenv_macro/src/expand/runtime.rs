@@ -5,6 +5,8 @@
 //! - `get_str(&self, key)` - Gets field value as string by key
 //! - `has_key(key)` - Checks if a key exists
 
+use std::string::ToString;
+
 use proc_macro2::TokenStream as QuoteStream;
 use quote::quote;
 use syn::{Generics, Ident};
@@ -23,7 +25,7 @@ pub fn generate_runtime_access_impl(
     let key_names: Vec<String> = generators
         .iter()
         .filter(|g| !g.is_flatten() && g.format_config().is_none())
-        .filter_map(|g| g.field_name().map(|n| n.to_string()))
+        .filter_map(|g| g.field_name().map(ToString::to_string))
         .collect();
 
     let key_literals: Vec<_> = key_names.iter().map(|k| quote! { #k }).collect();
@@ -56,7 +58,7 @@ pub fn generate_runtime_access_impl(
         .map(|g| {
             let name = g.name();
             let name_str = name.to_string();
-            let prefix = format!("{}.", name_str);
+            let prefix = format!("{name_str}.");
 
             quote! {
                 key if key.starts_with(#prefix) => {
@@ -73,7 +75,7 @@ pub fn generate_runtime_access_impl(
         .filter_map(|g| {
             let ty = g.field_type()?;
             let name_str = g.name().to_string();
-            let prefix = format!("{}.", name_str);
+            let prefix = format!("{name_str}.");
 
             Some(quote! {
                 if key.starts_with(#prefix) {

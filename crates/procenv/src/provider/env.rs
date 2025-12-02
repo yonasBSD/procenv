@@ -22,6 +22,7 @@ pub struct EnvProvider {
 
 impl EnvProvider {
     /// Create a new environment provider without a prefix.
+    #[must_use]
     pub fn new() -> Self {
         Self { prefix: None }
     }
@@ -29,7 +30,7 @@ impl EnvProvider {
     /// Creates a new environment provider with a prefix.
     ///
     /// When getting a key, the prefix is prepended to the key name.
-    /// For example, with prefix "APP_", getting "PORT" will look for "APP_PORT".
+    /// For example, with prefix `"APP_"`, getting `"PORT"` will look for `"APP_PORT"`.
     pub fn with_prefix(prefix: impl Into<String>) -> Self {
         Self {
             prefix: Some(prefix.into()),
@@ -53,7 +54,7 @@ impl Default for EnvProvider {
 }
 
 impl Provider for EnvProvider {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "environment"
     }
 

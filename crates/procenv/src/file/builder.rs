@@ -71,7 +71,7 @@ pub struct ConfigBuilder {
     env_prefix: Option<String>,
     env_separator: String,
     origins: OriginTracker,
-    /// Direct field-to-env-var mappings for custom var names (field_path, env_var)
+    /// Direct field-to-env-var mappings for custom var names (`field_path`, `env_var`)
     env_mappings: Vec<(String, String)>,
 }
 
@@ -83,6 +83,7 @@ impl Default for ConfigBuilder {
 
 impl ConfigBuilder {
     /// Creates a new configuration builder with empty defaults.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             base: SJSON::Value::Object(SJSON::Map::new()),
@@ -228,7 +229,7 @@ impl ConfigBuilder {
     ///
     /// # Arguments
     ///
-    /// * `field_path` - The JSON path to the field (e.g., "database_url" or "database.port")
+    /// * `field_path` - The JSON path to the field (e.g., "`database_url`" or "database.port")
     /// * `env_var` - The environment variable name to read
     ///
     /// # Example
@@ -350,6 +351,11 @@ impl ConfigBuilder {
     /// A tuple of:
     /// - The deserialized configuration struct
     /// - An `OriginTracker` that records which file each value came from
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a required file is missing, a file has invalid syntax,
+    /// or the merged configuration cannot be deserialized to `T`.
     pub fn build_with_origins<T: DeserializeOwned>(self) -> Result<(T, OriginTracker), Error> {
         use serde::de::IntoDeserializer;
 
@@ -372,7 +378,7 @@ impl ConfigBuilder {
             // Fallback to no span
             Error::from(FileError::ParseNoSpan {
                 format: "JSON",
-                message: format!("at `{}`: {}", path, inner_msg),
+                message: format!("at `{path}`: {inner_msg}"),
                 help: "check that the config file values match the expected types".to_string(),
             })
         })?;

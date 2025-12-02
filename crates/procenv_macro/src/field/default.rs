@@ -130,6 +130,10 @@ impl FieldGenerator for DefaultField {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "proc-macro code generation inherently requires verbose quote! blocks"
+    )]
     fn generate_loader_with_external_prefix(&self) -> QuoteStream {
         let field_name = &self.name;
         let ty = &self.ty;

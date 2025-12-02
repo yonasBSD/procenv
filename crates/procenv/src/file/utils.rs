@@ -90,7 +90,7 @@ impl FileUtils {
     }
 
     /// Find the largest valid char boundary <= offset.
-    /// This is a polyfill for str::floor_char_boundary which is unstable.
+    /// This is a polyfill for `str::floor_char_boundary` which is unstable.
     fn floor_char_boundary(s: &str, offset: usize) -> usize {
         if offset >= s.len() {
             s.len()
@@ -215,7 +215,7 @@ impl FileUtils {
             FileFormat::Toml => {
                 // Look for [section] or [parent.child] header
                 let section_name = parent_parts.join(".");
-                let header = format!("[{}]", section_name);
+                let header = format!("[{section_name}]");
 
                 if let Some(section_start) = content.find(&header) {
                     let after_header = section_start + header.len();
@@ -223,8 +223,7 @@ impl FileUtils {
                     let section_content = &content[after_header..];
                     let section_end = section_content
                         .find("\n[")
-                        .map(|pos| after_header + pos)
-                        .unwrap_or(content.len());
+                        .map_or(content.len(), |pos| after_header + pos);
                     return Some(&content[after_header..section_end]);
                 }
                 None
@@ -233,7 +232,7 @@ impl FileUtils {
             FileFormat::Json => {
                 // For JSON, find the parent object by searching for "parent": {
                 let parent_key = parent_parts.last()?;
-                let pattern = format!("\"{}\"", parent_key);
+                let pattern = format!("\"{parent_key}\"");
 
                 if let Some(key_pos) = content.find(&pattern) {
                     // Find the opening brace after the key
@@ -250,7 +249,7 @@ impl FileUtils {
             FileFormat::Yaml => {
                 // For YAML, find parent key and return indented content after it
                 let parent_key = parent_parts.last()?;
-                let pattern = format!("{}:", parent_key);
+                let pattern = format!("{parent_key}:");
 
                 if let Some(key_pos) = content.find(&pattern) {
                     return Some(&content[key_pos..]);
@@ -260,7 +259,7 @@ impl FileUtils {
         }
     }
 
-    pub(crate) fn json_parse_error(e: SJSON::Error, content: &str, path: &Path) -> FileError {
+    pub(crate) fn json_parse_error(e: &SJSON::Error, content: &str, path: &Path) -> FileError {
         let line = e.line();
         let col = e.column();
         let offset = Self::line_col_to_offset(content, line, col);
@@ -276,7 +275,7 @@ impl FileUtils {
     }
 
     #[cfg(feature = "toml")]
-    pub(crate) fn toml_parse_error(e: TOML::de::Error, content: &str, path: &Path) -> FileError {
+    pub(crate) fn toml_parse_error(e: &TOML::de::Error, content: &str, path: &Path) -> FileError {
         if let Some(span) = e.span() {
             FileError::Parse {
                 format: "TOML",
@@ -296,7 +295,7 @@ impl FileUtils {
     }
 
     #[cfg(feature = "yaml")]
-    pub(crate) fn yaml_parse_error(e: YAML::Error, content: &str, path: &Path) -> FileError {
+    pub(crate) fn yaml_parse_error(e: &YAML::Error, content: &str, path: &Path) -> FileError {
         let msg = e.to_string();
 
         if let Some(loc) = Self::extract_yaml_location(&msg) {
@@ -375,6 +374,11 @@ impl FileUtils {
     /// - `Ok(None)` - File doesn't exist and `required` is `false`
     /// - `Err(...)` - File doesn't exist (when required) or parse error
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the file is required but missing, the file cannot be read,
+    /// the file format is unknown, or the file content cannot be parsed.
+    ///
     /// # Example
     ///
     /// ```rust,ignore
@@ -420,18 +424,18 @@ impl FileUtils {
 
         let value = match format {
             FileFormat::Json => serde_json::from_str(&content)
-                .map_err(|e| Self::json_parse_error(e, &content, path))?,
+                .map_err(|e| Self::json_parse_error(&e, &content, path))?,
 
             #[cfg(feature = "toml")]
             FileFormat::Toml => {
                 let toml_value: toml::Value = toml::from_str(&content)
-                    .map_err(|e| Self::toml_parse_error(e, &content, path))?;
+                    .map_err(|e| Self::toml_parse_error(&e, &content, path))?;
                 Self::toml_to_json(toml_value)
             }
 
             #[cfg(feature = "yaml")]
             FileFormat::Yaml => serde_saphyr::from_str(&content)
-                .map_err(|e| Self::yaml_parse_error(e, &content, path))?,
+                .map_err(|e| Self::yaml_parse_error(&e, &content, path))?,
         };
 
         Ok(Some((value, content, format)))
@@ -446,6 +450,10 @@ impl FileUtils {
     ///
     /// * `content` - The configuration content as a string
     /// * `format` - The format to parse as
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the content cannot be parsed as the specified format.
     ///
     /// # Example
     ///
@@ -464,18 +472,18 @@ impl FileUtils {
         let dummy_path = Path::new("<string>");
         match format {
             FileFormat::Json => serde_json::from_str(content)
-                .map_err(|e| Self::json_parse_error(e, content, dummy_path)),
+                .map_err(|e| Self::json_parse_error(&e, content, dummy_path)),
 
             #[cfg(feature = "toml")]
             FileFormat::Toml => {
                 let toml_value: toml::Value = toml::from_str(content)
-                    .map_err(|e| Self::toml_parse_error(e, content, dummy_path))?;
+                    .map_err(|e| Self::toml_parse_error(&e, content, dummy_path))?;
                 Ok(Self::toml_to_json(toml_value))
             }
 
             #[cfg(feature = "yaml")]
             FileFormat::Yaml => serde_saphyr::from_str(content)
-                .map_err(|e| Self::yaml_parse_error(e, content, dummy_path)),
+                .map_err(|e| Self::yaml_parse_error(&e, content, dummy_path)),
         }
     }
 
@@ -587,6 +595,7 @@ impl FileUtils {
     /// assert_eq!(FileUtils::coerce_value("3.14"), Value::Number(/* 3.14 */));
     /// assert_eq!(FileUtils::coerce_value("hello"), Value::String("hello".into()));
     /// ```
+    #[must_use]
     pub fn coerce_value(s: &str) -> SJSON::Value {
         if s.eq_ignore_ascii_case("true") {
             return SJSON::Value::Bool(true);
@@ -610,6 +619,7 @@ impl FileUtils {
     }
 
     /// Convert environment variables to a nested JSON Value.
+    #[must_use]
     pub fn env_to_value(prefix: &str, separator: &str) -> SJSON::Value {
         let mut root = serde_json::Map::new();
 

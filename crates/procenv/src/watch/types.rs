@@ -194,16 +194,19 @@ impl<T> ConfigChange<T> {
     }
 
     /// Returns `true` if this is the initial configuration load.
+    #[must_use]
     pub fn is_initial(&self) -> bool {
         matches!(self.trigger, ChangeTrigger::Initial)
     }
 
     /// Returns `true` if any fields changed.
+    #[must_use]
     pub fn has_changes(&self) -> bool {
         !self.changed_fields.is_empty()
     }
 
     /// Check if a specific field changed.
+    #[must_use]
     pub fn field_changed(&self, field_name: &str) -> bool {
         self.changed_fields.iter().any(|f| f == field_name)
     }
@@ -236,6 +239,7 @@ pub enum ChangeTrigger {
 
 impl ChangeTrigger {
     /// Returns the file path if this trigger is file-related.
+    #[must_use]
     pub fn file_path(&self) -> Option<&PathBuf> {
         match self {
             Self::FileModified(p) | Self::FileCreated(p) | Self::FileDeleted(p) => Some(p),
@@ -244,6 +248,7 @@ impl ChangeTrigger {
     }
 
     /// Returns the env var name if this trigger is env-related.
+    #[must_use]
     pub fn env_var(&self) -> Option<&str> {
         match self {
             Self::EnvVarChanged(var) => Some(var),
@@ -252,6 +257,7 @@ impl ChangeTrigger {
     }
 
     /// Returns `true` if this is a file-related trigger.
+    #[must_use]
     pub fn is_file_trigger(&self) -> bool {
         matches!(
             self,
@@ -266,7 +272,7 @@ impl std::fmt::Display for ChangeTrigger {
             Self::FileModified(p) => write!(f, "file modified: {}", p.display()),
             Self::FileCreated(p) => write!(f, "file created: {}", p.display()),
             Self::FileDeleted(p) => write!(f, "file deleted: {}", p.display()),
-            Self::EnvVarChanged(var) => write!(f, "env var changed: {}", var),
+            Self::EnvVarChanged(var) => write!(f, "env var changed: {var}"),
             Self::ManualReload => write!(f, "manual reload"),
             Self::Initial => write!(f, "initial load"),
         }

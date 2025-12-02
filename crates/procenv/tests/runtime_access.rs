@@ -1,5 +1,8 @@
 //! Tests for Phase D: Runtime Access.
 
+#![allow(clippy::pedantic)]
+#![allow(clippy::manual_strip)]
+
 use procenv::{ConfigLoader, ConfigValue, EnvConfig};
 use serial_test::serial;
 use std::env;
@@ -78,7 +81,9 @@ fn test_config_value_path_access() {
         Some("localhost")
     );
     assert_eq!(
-        config.get_path("database.port").and_then(|v| v.to_u16()),
+        config
+            .get_path("database.port")
+            .and_then(procenv::ConfigValue::to_u16),
         Some(5432)
     );
     assert!(config.get_path("nonexistent").is_none());
@@ -124,7 +129,7 @@ fn test_get_str() {
             assert_eq!(config.get_str("port"), Some("3000".to_string()));
             assert_eq!(config.get_str("unknown"), None);
         },
-    )
+    );
 }
 
 #[test]
@@ -158,7 +163,7 @@ fn test_secret_redacted() {
             assert_eq!(config.get_str("username"), Some("admin".to_string()));
             assert_eq!(config.get_str("password"), Some("<redacted>".to_string()));
         },
-    )
+    );
 }
 
 // ============================================================================
@@ -201,7 +206,7 @@ fn test_nested_get_str() {
             );
             assert_eq!(config.get_str("database.port"), Some("3306".to_string()));
         },
-    )
+    );
 }
 
 // ============================================================================
@@ -214,7 +219,7 @@ fn test_loader_get_str() {
     with_env(&[("LOADER_VAR", "hello")], || {
         let mut loader = ConfigLoader::new().with_env();
         assert_eq!(loader.get_str("LOADER_VAR"), Some("hello".to_string()));
-    })
+    });
 }
 
 #[test]
@@ -224,7 +229,7 @@ fn test_loader_get_parsed() {
         let mut loader = ConfigLoader::new().with_env();
         let port: Option<u16> = loader.get_parsed("LOADER_PORT").unwrap();
         assert_eq!(port, Some(8080));
-    })
+    });
 }
 
 #[test]
@@ -238,7 +243,7 @@ fn test_loader_get_value_infer() {
 
         let val = loader.get_value_infer("LOADER_INT").unwrap();
         assert_eq!(val.to_u32(), Some(42));
-    })
+    });
 }
 
 #[test]
@@ -249,5 +254,5 @@ fn test_loader_get_with_source() {
         let (value, source) = loader.get_with_source("LOADER_SRC").unwrap();
         assert_eq!(value, "value");
         assert!(matches!(source, procenv::Source::Environment));
-    })
+    });
 }

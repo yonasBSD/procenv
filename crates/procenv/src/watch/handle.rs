@@ -71,7 +71,13 @@ impl<T: Clone + Send + Sync + 'static> ConfigHandle<T> {
             let handle = thread::Builder::new()
                 .name("procenv-callbacks".to_string())
                 .spawn(move || {
-                    callback_loop(change_rx, error_rx, on_change, on_error, watcher_clone);
+                    callback_loop(
+                        &change_rx,
+                        &error_rx,
+                        on_change.as_ref(),
+                        on_error.as_ref(),
+                        &watcher_clone,
+                    );
                 })
                 .ok();
 
@@ -97,6 +103,7 @@ impl<T: Clone + Send + Sync + 'static> ConfigHandle<T> {
     /// let config = handle.get();
     /// println!("Server running on port {}", config.port);
     /// ```
+    #[must_use]
     pub fn get(&self) -> Arc<T> {
         self.watcher.config().get()
     }
@@ -121,6 +128,7 @@ impl<T: Clone + Send + Sync + 'static> ConfigHandle<T> {
     /// Get the current source attribution.
     ///
     /// Returns information about where each configuration value came from.
+    #[must_use]
     pub fn sources(&self) -> ConfigSources {
         self.watcher.config().sources()
     }
@@ -139,6 +147,7 @@ impl<T: Clone + Send + Sync + 'static> ConfigHandle<T> {
     ///     println!("Config changed while working!");
     /// }
     /// ```
+    #[must_use]
     pub fn epoch(&self) -> u64 {
         self.watcher.config().epoch()
     }
@@ -155,6 +164,7 @@ impl<T: Clone + Send + Sync + 'static> ConfigHandle<T> {
     ///     // Handle the change
     /// }
     /// ```
+    #[must_use]
     pub fn has_changed_since(&self, epoch: u64) -> bool {
         self.epoch() != epoch
     }
@@ -201,6 +211,7 @@ impl<T: Clone + Send + Sync + 'static> ConfigHandle<T> {
     ///
     /// Returns `false` after `stop()` is called or if the watcher thread
     /// terminated unexpectedly.
+    #[must_use]
     pub fn is_running(&self) -> bool {
         self.watcher.is_running()
     }
@@ -208,6 +219,7 @@ impl<T: Clone + Send + Sync + 'static> ConfigHandle<T> {
     /// Get a clone of the command sender for advanced use cases.
     ///
     /// This allows sending commands to the watcher from other contexts.
+    #[must_use]
     pub fn command_sender(&self) -> crossbeam_channel::Sender<WatchCommand> {
         self.watcher.command_sender()
     }
@@ -234,11 +246,11 @@ impl<T: Clone + Send + Sync + 'static> std::fmt::Debug for ConfigHandle<T> {
 
 /// Callback processing loop.
 fn callback_loop<T: Clone + Send + Sync + 'static>(
-    change_rx: Receiver<ConfigChange<T>>,
-    error_rx: Receiver<WatchError>,
-    on_change: Option<ChangeCallback<T>>,
-    on_error: Option<ErrorCallback>,
-    watcher: Arc<ConfigWatcher<T>>,
+    change_rx: &Receiver<ConfigChange<T>>,
+    error_rx: &Receiver<WatchError>,
+    on_change: Option<&ChangeCallback<T>>,
+    on_error: Option<&ErrorCallback>,
+    watcher: &Arc<ConfigWatcher<T>>,
 ) {
     use crossbeam_channel::select;
 
@@ -246,14 +258,14 @@ fn callback_loop<T: Clone + Send + Sync + 'static>(
         select! {
             recv(change_rx) -> change => {
                 if let Ok(change) = change
-                    && let Some(ref cb) = on_change
+                    && let Some(cb) = on_change
                 {
                     cb(change);
                 }
             }
             recv(error_rx) -> error => {
                 if let Ok(error) = error
-                    && let Some(ref cb) = on_error
+                    && let Some(cb) = on_error
                 {
                     cb(error);
                 }
@@ -278,6 +290,6 @@ mod tests {
     #[test]
     fn test_handle_debug() {
         // Just ensure Debug impl compiles
-        let _: fn(&ConfigHandle<TestConfig>) -> String = |h| format!("{:?}", h);
+        let _: fn(&ConfigHandle<TestConfig>) -> String = |h| format!("{h:?}");
     }
 }

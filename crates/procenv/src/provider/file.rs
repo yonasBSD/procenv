@@ -40,6 +40,11 @@ pub struct FileProvider {
 
 impl FileProvider {
     /// Creates a provider from a single required file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file does not exist or cannot be parsed.
+    #[allow(clippy::result_large_err)]
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, crate::file::FileError> {
         let path = path.as_ref();
         let (values, origins) = ConfigBuilder::new().file(path).merge()?;
@@ -54,6 +59,11 @@ impl FileProvider {
     /// Creates a provider from an optional file.
     ///
     /// Returns `Ok(None)` if the file doesn't exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file exists but cannot be parsed.
+    #[allow(clippy::result_large_err)]
     pub fn from_file_optional(
         path: impl AsRef<Path>,
     ) -> Result<Option<Self>, crate::file::FileError> {
@@ -65,6 +75,7 @@ impl FileProvider {
     }
 
     /// Creates a builder for loading multiple files.
+    #[must_use]
     pub fn builder() -> FileProviderBuilder {
         FileProviderBuilder::new()
     }
@@ -95,16 +106,15 @@ impl FileProvider {
 }
 
 impl Provider for FileProvider {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "file"
     }
 
     fn get(&self, key: &str) -> ProviderResult<ProviderValue> {
         match self.get_by_path(key) {
             Some(value) => {
-                let string_value = match Self::value_to_string(value) {
-                    Some(s) => s,
-                    None => return Ok(None),
+                let Some(string_value) = Self::value_to_string(value) else {
+                    return Ok(None);
                 };
 
                 // Determine which file this value came from
@@ -128,7 +138,7 @@ impl Provider for FileProvider {
     }
 }
 
-/// Builder for creating a FileProvider with multiple files.
+/// Builder for creating a `FileProvider` with multiple files.
 pub struct FileProviderBuilder {
     inner: ConfigBuilder,
 }
@@ -154,6 +164,11 @@ impl FileProviderBuilder {
     }
 
     /// Builds the file provider.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any required file is missing or cannot be parsed.
+    #[allow(clippy::result_large_err)]
     pub fn build(self) -> Result<FileProvider, crate::file::FileError> {
         let (values, origins) = self.inner.merge()?;
 

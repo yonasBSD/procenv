@@ -98,7 +98,7 @@ pub enum FileError {
         /// Format name
         format: &'static str,
 
-        // Error message
+        /// Error message
         message: String,
 
         /// Suggestion for how to fix

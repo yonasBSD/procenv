@@ -27,20 +27,33 @@ use num_traits::{NumCast, ToPrimitive};
 // Macros for reducing boilerplate
 // ============================================================================
 
-/// Generates `From<T>` implementations for ConfigValue.
-macro_rules! impl_from_integer {
-    ($($t:ty => $variant:ident),+ $(,)?) => {
+/// Generates `From<T>` implementations for `ConfigValue` (signed integers).
+macro_rules! impl_from_signed {
+    ($($t:ty),+ $(,)?) => {
         $(
             impl From<$t> for ConfigValue {
                 fn from(n: $t) -> Self {
-                    ConfigValue::$variant(n as _)
+                    ConfigValue::Integer(<i64 as From<$t>>::from(n))
                 }
             }
         )+
     };
 }
 
-/// Generates `to_*` methods that use ToPrimitive.
+/// Generates `From<T>` implementations for `ConfigValue` (unsigned integers).
+macro_rules! impl_from_unsigned {
+    ($($t:ty),+ $(,)?) => {
+        $(
+            impl From<$t> for ConfigValue {
+                fn from(n: $t) -> Self {
+                    ConfigValue::UnsignedInteger(<u64 as From<$t>>::from(n))
+                }
+            }
+        )+
+    };
+}
+
+/// Generates `to_*` methods that use `ToPrimitive`.
 macro_rules! impl_to_primitive {
     ($($method:ident -> $t:ty),+ $(,)?) => {
         $(
@@ -51,7 +64,7 @@ macro_rules! impl_to_primitive {
                     ConfigValue::UnsignedInteger(n) => n.$method(),
                     ConfigValue::Float(f) => f.$method(),
                     ConfigValue::String(s) => s.parse().ok(),
-                    ConfigValue::Boolean(b) => Some(if *b { 1 as $t } else { 0 as $t }),
+                    ConfigValue::Boolean(b) => <i32 as From<bool>>::from(*b).$method(),
                     _ => None,
                 }
             }
@@ -107,6 +120,7 @@ impl ConfigValue {
     /// Creates from a string with automatic type inference.
     ///
     /// Inference order: bool -> unsigned int -> signed int -> float -> string
+    #[must_use]
     pub fn from_str_infer(s: &str) -> Self {
         // Boolean
         match s.to_ascii_lowercase().as_str() {
@@ -148,6 +162,7 @@ impl ConfigValue {
 
 impl ConfigValue {
     /// Returns as string reference if String variant.
+    #[must_use]
     pub fn as_str(&self) -> Option<&str> {
         match self {
             ConfigValue::String(s) => Some(s),
@@ -156,6 +171,7 @@ impl ConfigValue {
     }
 
     /// Returns as bool, parsing strings "true"/"false"/"1"/"0".
+    #[must_use]
     pub fn as_bool(&self) -> Option<bool> {
         match self {
             ConfigValue::Boolean(b) => Some(*b),
@@ -171,6 +187,7 @@ impl ConfigValue {
     }
 
     /// Returns as list reference if List variant.
+    #[must_use]
     pub fn as_list(&self) -> Option<&[ConfigValue]> {
         match self {
             ConfigValue::List(v) => Some(v),
@@ -179,6 +196,7 @@ impl ConfigValue {
     }
 
     /// Returns as map reference if Map variant.
+    #[must_use]
     pub fn as_map(&self) -> Option<&HashMap<String, ConfigValue>> {
         match self {
             ConfigValue::Map(m) => Some(m),
@@ -187,16 +205,19 @@ impl ConfigValue {
     }
 
     /// Checks if None variant.
+    #[must_use]
     pub fn is_none(&self) -> bool {
         matches!(self, ConfigValue::None)
     }
 
     /// Checks if not None.
+    #[must_use]
     pub fn is_some(&self) -> bool {
         !self.is_none()
     }
 
     /// Returns the type name of this value.
+    #[must_use]
     pub fn type_name(&self) -> &'static str {
         match self {
             ConfigValue::String(_) => "string",
@@ -248,7 +269,7 @@ impl ConfigValue {
             ConfigValue::UnsignedInteger(n) => NumCast::from(*n),
             ConfigValue::Float(f) => NumCast::from(*f),
             ConfigValue::String(s) => s.parse::<f64>().ok().and_then(NumCast::from),
-            ConfigValue::Boolean(b) => NumCast::from(if *b { 1i64 } else { 0i64 }),
+            ConfigValue::Boolean(b) => NumCast::from(<i64 as From<bool>>::from(*b)),
             _ => None,
         }
     }
@@ -256,11 +277,17 @@ impl ConfigValue {
     /// Parses to any type implementing `FromStr`.
     ///
     /// First converts to string representation, then parses.
+    ///
+    /// # Errors
+    ///
+    /// Returns the parse error from `T::FromStr` if the string representation
+    /// cannot be parsed into the target type.
     pub fn parse<T: FromStr>(&self) -> Result<T, T::Err> {
         self.to_string_repr().parse()
     }
 
     /// Converts to owned String representation.
+    #[must_use]
     pub fn into_string(self) -> String {
         match self {
             ConfigValue::String(s) => s,
@@ -269,7 +296,7 @@ impl ConfigValue {
             ConfigValue::Float(f) => f.to_string(),
             ConfigValue::Boolean(b) => b.to_string(),
             ConfigValue::List(v) => {
-                let items: Vec<_> = v.into_iter().map(|cv| cv.into_string()).collect();
+                let items: Vec<_> = v.into_iter().map(ConfigValue::into_string).collect();
                 format!("[{}]", items.join(", "))
             }
             ConfigValue::Map(m) => {
@@ -302,6 +329,7 @@ impl ConfigValue {
 
 impl ConfigValue {
     /// Gets nested value by dotted path (e.g., `"database.host"`).
+    #[must_use]
     pub fn get_path(&self, path: &str) -> Option<&ConfigValue> {
         let mut current = self;
         for key in path.split('.') {
@@ -354,7 +382,7 @@ impl From<bool> for ConfigValue {
 
 impl From<f32> for ConfigValue {
     fn from(f: f32) -> Self {
-        ConfigValue::Float(f as f64)
+        ConfigValue::Float(<f64 as From<f32>>::from(f))
     }
 }
 
@@ -364,18 +392,35 @@ impl From<f64> for ConfigValue {
     }
 }
 
-// Generate From impls for integer types
-impl_from_integer! {
-    i8 => Integer,
-    i16 => Integer,
-    i32 => Integer,
-    i64 => Integer,
-    isize => Integer,
-    u8 => UnsignedInteger,
-    u16 => UnsignedInteger,
-    u32 => UnsignedInteger,
-    u64 => UnsignedInteger,
-    usize => UnsignedInteger,
+// Generate From impls for integer types (using From trait for lossless conversion)
+impl_from_signed!(i8, i16, i32);
+impl_from_unsigned!(u8, u16, u32);
+
+// i64/u64/isize/usize need manual impls since From<isize/usize> -> i64/u64 doesn't exist
+impl From<i64> for ConfigValue {
+    fn from(n: i64) -> Self {
+        ConfigValue::Integer(n)
+    }
+}
+
+impl From<u64> for ConfigValue {
+    fn from(n: u64) -> Self {
+        ConfigValue::UnsignedInteger(n)
+    }
+}
+
+#[allow(clippy::cast_possible_wrap)]
+impl From<isize> for ConfigValue {
+    fn from(n: isize) -> Self {
+        ConfigValue::Integer(n as i64)
+    }
+}
+
+#[allow(clippy::cast_possible_truncation)]
+impl From<usize> for ConfigValue {
+    fn from(n: usize) -> Self {
+        ConfigValue::UnsignedInteger(n as u64)
+    }
 }
 
 impl<T: Into<ConfigValue>> From<Vec<T>> for ConfigValue {
@@ -400,18 +445,18 @@ impl<T: Into<ConfigValue>> From<Option<T>> for ConfigValue {
 impl Display for ConfigValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            ConfigValue::String(s) => write!(f, "{}", s),
-            ConfigValue::Integer(n) => write!(f, "{}", n),
-            ConfigValue::UnsignedInteger(n) => write!(f, "{}", n),
-            ConfigValue::Float(n) => write!(f, "{}", n),
-            ConfigValue::Boolean(b) => write!(f, "{}", b),
+            ConfigValue::String(s) => write!(f, "{s}"),
+            ConfigValue::Integer(n) => write!(f, "{n}"),
+            ConfigValue::UnsignedInteger(n) => write!(f, "{n}"),
+            ConfigValue::Float(n) => write!(f, "{n}"),
+            ConfigValue::Boolean(b) => write!(f, "{b}"),
             ConfigValue::List(v) => {
                 write!(f, "[")?;
                 for (i, item) in v.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}", item)?;
+                    write!(f, "{item}")?;
                 }
                 write!(f, "]")
             }
@@ -531,7 +576,9 @@ mod tests {
             Some("localhost")
         );
         assert_eq!(
-            config.get_path("database.port").and_then(|v| v.to_u16()),
+            config
+                .get_path("database.port")
+                .and_then(super::ConfigValue::to_u16),
             Some(5432)
         );
         assert!(config.get_path("nonexistent").is_none());
@@ -541,7 +588,7 @@ mod tests {
     fn test_from_impls() {
         let _: ConfigValue = 42i8.into();
         let _: ConfigValue = 42u32.into();
-        let _: ConfigValue = 3.14f32.into();
+        let _: ConfigValue = 2.5f32.into();
         let _: ConfigValue = "hello".into();
         let _: ConfigValue = true.into();
         let _: ConfigValue = vec![1i32, 2, 3].into();

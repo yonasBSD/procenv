@@ -47,7 +47,7 @@
 //! let config = Config::from_config()?;
 //! ```
 //!
-//! ## With ConfigBuilder (Manual)
+//! ## With `ConfigBuilder` (Manual)
 //!
 //! ```rust,ignore
 //! use procenv::file::{ConfigBuilder, FileFormat};
@@ -134,6 +134,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::approx_constant)]
     fn test_coerce_value_float() {
         let val = FileUtils::coerce_value("3.14");
         if let SJSON::Value::Number(n) = val {

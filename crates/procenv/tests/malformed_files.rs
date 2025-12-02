@@ -2,6 +2,7 @@
 //!
 //! Tests for handling invalid/malformed TOML, JSON, and YAML files.
 
+#![allow(clippy::pedantic)]
 #![cfg(feature = "file-all")]
 
 use procenv::EnvConfig;
@@ -17,12 +18,12 @@ fn ensure_dir() {
 
 fn write_file(name: &str, content: &str) {
     ensure_dir();
-    let path = format!("{}/{}", BASE_DIR, name);
+    let path = format!("{BASE_DIR}/{name}");
     fs::write(&path, content).expect("Failed to write test file");
 }
 
 fn cleanup_file(name: &str) {
-    let path = format!("{}/{}", BASE_DIR, name);
+    let path = format!("{BASE_DIR}/{name}");
     let _ = fs::remove_file(&path);
 }
 
@@ -90,11 +91,10 @@ port = "not_a_number"
     assert!(result.is_err(), "Should error on type mismatch");
 
     let err = result.unwrap_err();
-    let err_str = format!("{}", err);
+    let err_str = format!("{err}");
     assert!(
         err_str.contains("port") || err_str.contains("u16") || err_str.contains("integer"),
-        "Error should mention the field or type: {}",
-        err_str
+        "Error should mention the field or type: {err_str}"
     );
 
     cleanup_file("malformed.toml");
@@ -107,7 +107,7 @@ fn test_malformed_toml_missing_required_key() {
     cleanup_file("malformed.toml");
 
     // Missing name field (which has default, so should work)
-    let content = r#"port = 3000"#;
+    let content = r"port = 3000";
     write_file("malformed.toml", content);
 
     let result = MalformedTomlConfig::from_config();
@@ -236,10 +236,10 @@ fn test_malformed_yaml_bad_indentation() {
     cleanup_file("malformed.yaml");
 
     // Invalid YAML: inconsistent indentation
-    let content = r#"
+    let content = r"
 name: test
   enabled: true
-"#;
+";
     write_file("malformed.yaml", content);
 
     let result = MalformedYamlConfig::from_config();
@@ -339,10 +339,10 @@ fn test_comments_only_yaml() {
     cleanup_env(&["MAL_YAML_NAME", "MAL_YAML_ENABLED"]);
     cleanup_file("malformed.yaml");
 
-    let content = r#"
+    let content = r"
 # This is a comment
 # Another comment
-"#;
+";
     write_file("malformed.yaml", content);
 
     let result = MalformedYamlConfig::from_config();
@@ -377,7 +377,7 @@ another_unknown = 123
 
     let result = MalformedTomlConfig::from_config();
     // serde should ignore unknown fields by default (deny_unknown_fields not set)
-    assert!(result.is_ok(), "Should ignore unknown fields: {:?}", result);
+    assert!(result.is_ok(), "Should ignore unknown fields: {result:?}");
 
     let config = result.unwrap();
     assert_eq!(config.name, "test");

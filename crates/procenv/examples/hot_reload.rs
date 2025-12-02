@@ -69,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("  New config: {:?}", change.new);
         })
         .on_error(|err| {
-            eprintln!("\n[ERROR] Config reload failed: {}", err);
+            eprintln!("\n[ERROR] Config reload failed: {err}");
             eprintln!("  Previous config is still active");
         })
         .build_sync(move || {
@@ -77,7 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let content =
                 fs::read_to_string(&config_path_clone).map_err(|e| procenv::Error::Missing {
                     var: config_path_clone.display().to_string(),
-                    help: format!("Failed to read config file: {}", e),
+                    help: format!("Failed to read config file: {e}"),
                 })?;
 
             let value: toml::Value =
@@ -85,12 +85,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .parse()
                     .map_err(|e: toml::de::Error| procenv::Error::Missing {
                         var: "config".to_string(),
-                        help: format!("Invalid TOML: {}", e),
+                        help: format!("Invalid TOML: {e}"),
                     })?;
 
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let port = value
                 .get("port")
-                .and_then(|v| v.as_integer())
+                .and_then(toml::Value::as_integer)
                 .unwrap_or(8080) as u16;
             let host = value
                 .get("host")
@@ -99,7 +100,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .to_string();
             let debug = value
                 .get("debug")
-                .and_then(|v| v.as_bool())
+                .and_then(toml::Value::as_bool)
                 .unwrap_or(false);
 
             Ok((Config { port, host, debug }, ConfigSources::default()))
@@ -108,7 +109,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Show initial config
     let config = handle.get();
     println!("Initial configuration:");
-    println!("  {:?}", config);
+    println!("  {config:?}");
     println!("\nWatching for changes (press Ctrl+C to exit)...");
     println!("Try editing {} to see hot reload!\n", config_path.display());
 
@@ -120,7 +121,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if handle.has_changed_since(last_epoch) {
             last_epoch = handle.epoch();
             let current = handle.get();
-            println!("[POLL] Current config: {:?}", current);
+            println!("[POLL] Current config: {current:?}");
         }
 
         // Check if still running

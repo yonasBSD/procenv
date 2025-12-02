@@ -7,6 +7,15 @@
 //! APP_HOST=localhost APP_PORT=3000 APP_DEBUG=true cargo run --example runtime_access
 //! ```
 
+#![allow(
+    unused,
+    dead_code,
+    clippy::no_effect_underscore_binding,
+    clippy::struct_field_names,
+    clippy::manual_strip,
+    clippy::result_large_err
+)]
+
 use procenv::{ConfigLoader, ConfigValue, EnvConfig};
 
 #[allow(dead_code)]
@@ -56,7 +65,7 @@ fn main() -> Result<(), procenv::Error> {
     println!("1. Available keys for AppConfig:");
     for key in AppConfig::keys() {
         let exists = AppConfig::has_key(key);
-        println!("   - {} (exists: {})", key, exists);
+        println!("   - {key} (exists: {exists})");
     }
     println!();
 
@@ -97,19 +106,19 @@ fn main() -> Result<(), procenv::Error> {
     println!("4. ConfigValue examples:");
 
     let val = ConfigValue::from_str_infer("8080");
-    println!("   Inferred '8080': {:?}", val);
+    println!("   Inferred '8080': {val:?}");
     println!("   As u16: {:?}", val.to_u16());
 
     let val = ConfigValue::from_str_infer("true");
-    println!("   Inferred 'true': {:?}", val);
+    println!("   Inferred 'true': {val:?}");
     println!("   As bool: {:?}", val.as_bool());
 
     let val = ConfigValue::from_str_infer("3.14");
-    println!("   Inferred '3.14': {:?}", val);
+    println!("   Inferred '3.14': {val:?}");
     println!("   As f64: {:?}", val.to_f64());
 
     let val = ConfigValue::from_str_infer("hello");
-    println!("   Inferred 'hello': {:?}", val);
+    println!("   Inferred 'hello': {val:?}");
     println!("   As str: {:?}", val.as_str());
     println!();
 
@@ -122,7 +131,7 @@ fn main() -> Result<(), procenv::Error> {
 
     // Get raw string
     if let Some(host) = loader.get_str("APP_HOST") {
-        println!("   APP_HOST = {}", host);
+        println!("   APP_HOST = {host}");
     } else {
         println!("   APP_HOST not set");
     }
@@ -131,13 +140,13 @@ fn main() -> Result<(), procenv::Error> {
     if let Some(value) = loader.get_value_infer("APP_PORT") {
         println!("   APP_PORT = {} (type: {})", value, value.type_name());
         if let Some(port) = value.to_u16() {
-            println!("   APP_PORT as u16 = {}", port);
+            println!("   APP_PORT as u16 = {port}");
         }
     }
 
     // Get with source attribution
     if let Some((value, source)) = loader.get_with_source("APP_DEBUG") {
-        println!("   APP_DEBUG = {} (from {:?})", value, source);
+        println!("   APP_DEBUG = {value} (from {source:?})");
     }
     println!();
 

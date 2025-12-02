@@ -604,19 +604,19 @@ Benchmarks on Linux (AMD Ryzen, divan):
 
 procenv uses compile-time code generation, making it significantly faster than runtime serde-based crates:
 
-| Crate (3 fields) | Time      | vs procenv |
-| ---------------- | --------- | ---------- |
-| **procenv**      | ~860 ns   | 1x         |
-| envy             | ~22.5 µs  | 26x slower |
-| figment          | ~27.8 µs  | 32x slower |
-| config           | ~30.9 µs  | 36x slower |
+| Crate (3 fields) | Time     | vs procenv |
+| ---------------- | -------- | ---------- |
+| **procenv**      | ~860 ns  | 1x         |
+| envy             | ~22.5 µs | 26x slower |
+| figment          | ~27.8 µs | 32x slower |
+| config           | ~30.9 µs | 36x slower |
 
-| Crate (6 fields) | Time      | vs procenv |
-| ---------------- | --------- | ---------- |
-| **procenv**      | ~1.8 µs   | 1x         |
-| envy             | ~25.4 µs  | 14x slower |
-| figment          | ~28.2 µs  | 16x slower |
-| config           | ~31.3 µs  | 18x slower |
+| Crate (6 fields) | Time     | vs procenv |
+| ---------------- | -------- | ---------- |
+| **procenv**      | ~1.8 µs  | 1x         |
+| envy             | ~25.4 µs | 14x slower |
+| figment          | ~28.2 µs | 16x slower |
+| config           | ~31.3 µs | 18x slower |
 
 **Why procenv is faster:**
 
@@ -648,13 +648,13 @@ The project includes comprehensive testing beyond unit/integration tests:
 
 35 property tests verify critical invariants using randomized inputs:
 
-| Category | Tests | What's Verified |
-| -------- | ----- | --------------- |
-| Type inference | 8 | Determinism, roundtrip correctness, edge cases |
-| Secret handling | 6 | Values never exposed in errors, Debug, or Display |
-| Numeric safety | 7 | Overflow detection, boundary conditions |
-| String handling | 6 | Unicode, empty strings, whitespace |
-| Conversions | 8 | Type coercion consistency, parse stability |
+| Category        | Tests | What's Verified                                   |
+| --------------- | ----- | ------------------------------------------------- |
+| Type inference  | 8     | Determinism, roundtrip correctness, edge cases    |
+| Secret handling | 6     | Values never exposed in errors, Debug, or Display |
+| Numeric safety  | 7     | Overflow detection, boundary conditions           |
+| String handling | 6     | Unicode, empty strings, whitespace                |
+| Conversions     | 8     | Type coercion consistency, parse stability        |
 
 ```bash
 # Run property tests
@@ -665,6 +665,7 @@ PROPTEST_CASES=1000 cargo test --all-features --test property_tests
 ```
 
 **Key invariants tested:**
+
 - `ConfigValue::from_str_infer()` is deterministic (same input → same output)
 - Secret values with `MaybeRedacted::Redacted` cannot be extracted
 - Numeric conversions return `None` on overflow (never panic)
@@ -674,14 +675,14 @@ PROPTEST_CASES=1000 cargo test --all-features --test property_tests
 
 6 fuzz targets for finding edge cases with coverage-guided fuzzing:
 
-| Target | Purpose | Key Invariants |
-| ------ | ------- | -------------- |
-| `fuzz_config_value` | ConfigValue parsing | No panics, type inference consistency |
-| `fuzz_maybe_redacted` | Secret redaction | Secrets never exposed in any output |
-| `fuzz_json_parsing` | JSON safety | Graceful error handling, no crashes |
-| `fuzz_toml_parsing` | TOML robustness | Deep merge consistency, coercion safety |
-| `fuzz_yaml_parsing` | YAML edge cases | Parser error recovery |
-| `fuzz_file_utils` | Utility functions | insert_nested/deep_merge correctness |
+| Target                | Purpose             | Key Invariants                          |
+| --------------------- | ------------------- | --------------------------------------- |
+| `fuzz_config_value`   | ConfigValue parsing | No panics, type inference consistency   |
+| `fuzz_maybe_redacted` | Secret redaction    | Secrets never exposed in any output     |
+| `fuzz_json_parsing`   | JSON safety         | Graceful error handling, no crashes     |
+| `fuzz_toml_parsing`   | TOML robustness     | Deep merge consistency, coercion safety |
+| `fuzz_yaml_parsing`   | YAML edge cases     | Parser error recovery                   |
+| `fuzz_file_utils`     | Utility functions   | insert_nested/deep_merge correctness    |
 
 ```bash
 # Run a fuzz target (requires nightly)
@@ -698,6 +699,7 @@ cargo +nightly fuzz run fuzz_config_value -- -max_total_time=300 -jobs=4
 ```
 
 **Fuzz testing has found:**
+
 - Edge cases in TOML/YAML coercion with unusual numeric formats
 - Unicode boundary issues in error message truncation
 - Deep nesting limits in configuration merging

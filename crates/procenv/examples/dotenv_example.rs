@@ -14,6 +14,15 @@
 //! cargo run --example dotenv_example
 //! ```
 
+#![allow(
+    unused,
+    dead_code,
+    clippy::no_effect_underscore_binding,
+    clippy::struct_field_names,
+    clippy::manual_strip,
+    clippy::result_large_err
+)]
+
 use procenv::EnvConfig;
 
 /// Config that loads from default .env file

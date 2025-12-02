@@ -1,4 +1,4 @@
-//! Integration tests for EnvConfig derive macro
+//! Integration tests for `EnvConfig` derive macro
 //!
 //! Run with: cargo nextest run --package procenv
 
@@ -185,7 +185,7 @@ fn test_error_accumulation() {
 // Source Attribution Tests
 // ============================================================================
 
-/// Helper to run the source_attribution example
+/// Helper to run the `source_attribution` example
 fn run_source_example(env_vars: &[(&str, &str)]) -> (bool, String, String) {
     let mut cmd = Command::new("cargo");
     cmd.args([
@@ -302,7 +302,7 @@ fn test_source_attribution_display_format() {
 // Prefix Support Tests
 // ============================================================================
 
-/// Helper to run the prefix_example
+/// Helper to run the `prefix_example`
 fn run_prefix_example(env_vars: &[(&str, &str)]) -> (bool, String, String) {
     let mut cmd = Command::new("cargo");
     cmd.args([
@@ -411,7 +411,7 @@ fn test_prefix_missing_required_shows_prefixed_name() {
 // .env.example Generation Tests
 // ============================================================================
 
-/// Helper to run the env_example_gen example
+/// Helper to run the `env_example_gen` example
 fn run_env_example_gen() -> (bool, String, String) {
     let mut cmd = Command::new("cargo");
     cmd.args([
@@ -536,7 +536,7 @@ fn test_env_example_includes_nested_config() {
 // File Configuration Tests (Phase 13)
 // ============================================================================
 
-/// Helper to run the file_config example
+/// Helper to run the `file_config` example
 fn run_file_config_example(env_vars: &[(&str, &str)]) -> (bool, String, String) {
     let mut cmd = Command::new("cargo");
     cmd.args([
@@ -658,6 +658,8 @@ fn test_file_config_priority_order() {
 // ============================================================================
 
 mod serde_format_tests {
+    #![allow(clippy::pedantic)]
+
     use procenv::EnvConfig;
     use serde::Deserialize;
     use serial_test::serial;
@@ -777,6 +779,8 @@ mod serde_format_tests {
 
 #[cfg(feature = "file")]
 mod from_config_tests {
+    #![allow(clippy::pedantic)]
+
     use procenv::EnvConfig;
     use serde::Deserialize;
     use serial_test::serial;

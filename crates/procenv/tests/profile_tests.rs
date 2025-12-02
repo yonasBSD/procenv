@@ -2,6 +2,8 @@
 //!
 //! Tests for profile-based configuration (dev/staging/prod).
 
+#![allow(clippy::pedantic)]
+
 use procenv::{EnvConfig, Source};
 use serial_test::serial;
 
@@ -65,7 +67,7 @@ fn test_profile_dev_selection() {
         let config = BasicProfileConfig::from_env().expect("should load dev profile");
         assert_eq!(config.database_url, "postgres://localhost/dev");
         assert_eq!(config.port, 8080);
-    })
+    });
 }
 
 #[test]
@@ -76,7 +78,7 @@ fn test_profile_staging_selection() {
     with_env(&[("PROF_ENV", "staging")], || {
         let config = BasicProfileConfig::from_env().expect("should load staging profile");
         assert_eq!(config.database_url, "postgres://staging/app");
-    })
+    });
 }
 
 #[test]
@@ -87,7 +89,7 @@ fn test_profile_prod_selection() {
     with_env(&[("PROF_ENV", "prod")], || {
         let config = BasicProfileConfig::from_env().expect("should load prod profile");
         assert_eq!(config.database_url, "postgres://prod/app");
-    })
+    });
 }
 
 // ============================================================================
@@ -108,7 +110,7 @@ fn test_env_overrides_profile() {
             let config = BasicProfileConfig::from_env().expect("should load with override");
             assert_eq!(config.database_url, "postgres://custom/override");
         },
-    )
+    );
 }
 
 #[test]
@@ -132,7 +134,7 @@ fn test_env_override_source_attribution() {
                 db_source.source
             );
         },
-    )
+    );
 }
 
 // ============================================================================
@@ -161,7 +163,7 @@ fn test_profile_source_attribution() {
             "port should be Default, got {:?}",
             port_source.source
         );
-    })
+    });
 }
 
 // ============================================================================
@@ -192,7 +194,7 @@ fn test_partial_profile_dev_has_log_not_cache() {
         let config = PartialProfileConfig::from_env().expect("should load");
         assert_eq!(config.log_level, "debug"); // from profile
         assert!(!config.enable_cache); // from default (no dev profile)
-    })
+    });
 }
 
 #[test]
@@ -204,7 +206,7 @@ fn test_partial_profile_prod_has_cache_not_log() {
         let config = PartialProfileConfig::from_env().expect("should load");
         assert_eq!(config.log_level, "info"); // from default (no prod profile)
         assert!(config.enable_cache); // from profile
-    })
+    });
 }
 
 #[test]
@@ -233,7 +235,7 @@ fn test_partial_profile_source_attribution() {
             "enable_cache should be Profile(prod), got {:?}",
             cache_source.source
         );
-    })
+    });
 }
 
 // ============================================================================
@@ -280,7 +282,7 @@ fn test_profile_with_prefix() {
         let config = PrefixedProfileConfig::from_env().expect("should load cloud profile");
         assert_eq!(config.host, "0.0.0.0");
         assert!(config.tls_enabled);
-    })
+    });
 }
 
 #[test]
@@ -295,5 +297,5 @@ fn test_profile_with_prefix_env_override() {
             assert_eq!(config.host, "custom.host");
             assert!(config.tls_enabled);
         },
-    )
+    );
 }

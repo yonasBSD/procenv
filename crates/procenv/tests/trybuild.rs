@@ -1,4 +1,4 @@
-//! Compile-time tests for EnvConfig derive macro.
+//! Compile-time tests for `EnvConfig` derive macro.
 //!
 //! These tests verify that:
 //! - Valid derive usage compiles successfully
@@ -6,7 +6,7 @@
 //!
 //! Run with: cargo nextest run --package procenv trybuild
 
-/// Core compile_pass tests that work with default features (dotenv only)
+/// Core `compile_pass` tests that work with default features (dotenv only)
 #[test]
 fn compile_pass() {
     let t = trybuild::TestCases::new();
