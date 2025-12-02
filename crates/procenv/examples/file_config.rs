@@ -76,7 +76,7 @@ fn main() {
     println!("1. Loading from TOML file:\n");
 
     let config: Result<AppConfig, _> = ConfigBuilder::new()
-        .file_optional("crates/procenv/examples/config.toml")
+        .file_optional("crates/procenv/data/config.toml")
         .env_prefix("APP_")
         .build();
 
@@ -106,7 +106,7 @@ fn main() {
     }
 
     let config: Result<AppConfig, _> = ConfigBuilder::new()
-        .file_optional("crates/procenv/examples/config.toml")
+        .file_optional("crates/procenv/data/config.toml")
         .env_prefix("APP_")
         .build();
 
@@ -145,7 +145,7 @@ fn main() {
 
     let config: Result<AppConfig, _> = ConfigBuilder::new()
         .defaults_value(defaults) // Start with defaults
-        .file_optional("crates/procenv/examples/config.toml") // File overrides defaults
+        .file_optional("crates/procenv/data/config.toml") // File overrides defaults
         .env_prefix("APP_")
         .build();
 

@@ -211,7 +211,7 @@ fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     });
 
     // Layer 1: Load config.toml if exists
-    if let Ok(file_config) = parse_file("crates/procenv/examples/config.toml") {
+    if let Ok(file_config) = parse_file("crates/procenv/data/config.toml") {
         println!("Loaded config.toml");
         deep_merge(&mut merged, file_config);
     }

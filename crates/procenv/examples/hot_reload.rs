@@ -6,14 +6,10 @@
 //! # Running
 //!
 //! ```bash
-//! # Create a config file
-//! echo 'port = 8080' > /tmp/config.toml
-//!
-//! # Run the example
-//! cargo run --example hot_reload --features watch
+//! cargo run --example hot_reload --features "watch toml"
 //!
 //! # In another terminal, modify the config
-//! echo 'port = 9090' > /tmp/config.toml
+//! # Edit crates/procenv/data/hot_reload.toml to see changes
 //! ```
 
 use std::fs;
@@ -41,11 +37,11 @@ impl std::fmt::Debug for Config {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a temporary config file
-    let config_path = std::env::temp_dir().join("procenv_example.toml");
+    // Use config file from data directory
+    let config_path = std::path::PathBuf::from("crates/procenv/data/hot_reload.toml");
 
-    // Write initial config
-    {
+    // Ensure the file exists with default content if not present
+    if !config_path.exists() {
         let mut file = fs::File::create(&config_path)?;
         writeln!(file, "port = 8080")?;
         writeln!(file, "host = \"localhost\"")?;
@@ -128,9 +124,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             break;
         }
     }
-
-    // Cleanup
-    let _ = fs::remove_file(&config_path);
 
     Ok(())
 }

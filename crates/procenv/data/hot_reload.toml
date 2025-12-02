@@ -1,0 +1,6 @@
+# Example config file for hot reload testing
+# Modify this file while the hot_reload example is running
+
+port = 8080
+host = "localhost"
+debug = false

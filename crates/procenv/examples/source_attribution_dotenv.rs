@@ -1,8 +1,8 @@
 //! Example demonstrating source attribution with dotenv files.
 //!
-//! Run from the examples directory:
+//! Run with:
 //! ```bash
-//! cd crates/procenv/examples && cargo run --example source_attribution_dotenv
+//! cargo run --example source_attribution_dotenv
 //! ```
 
 #![allow(
@@ -17,7 +17,7 @@
 use procenv::EnvConfig;
 
 #[derive(EnvConfig)]
-#[env_config(prefix = "APP_", dotenv = ".env.source_test")]
+#[env_config(prefix = "APP_", dotenv = "crates/procenv/data/.env.source_test")]
 struct Config {
     /// Database connection URL
     #[env(var = "DATABASE_URL")]
@@ -49,10 +49,6 @@ fn main() {
         std::env::set_var("APP_DEBUG", "true");
     }
 
-    // Change to examples directory where .env.source_test is located
-    let examples_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples");
-    std::env::set_current_dir(&examples_dir).expect("Failed to change to examples dir");
-
     // Load config with source tracking
     match Config::from_env_with_sources() {
         Ok((config, sources)) => {
@@ -67,10 +63,10 @@ fn main() {
             println!("\n{sources}");
 
             println!("Expected sources:");
-            println!("  database_url: .env file (set in .env.source_test)");
+            println!("  database_url: .env file (from data/.env.source_test)");
             println!("  port:         Default value (not in env or .env)");
             println!("  debug:        Environment variable (set before dotenv load)");
-            println!("  api_key:      .env file (set in .env.source_test)");
+            println!("  api_key:      .env file (from data/.env.source_test)");
         }
         Err(e) => {
             eprintln!("Failed to load config: {e}");
