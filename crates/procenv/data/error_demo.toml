@@ -1,0 +1,11 @@
+# Demo config file with intentional errors
+# This shows procenv's error diagnostics with source spans
+
+name = "my-app"
+port = "not_a_number"
+debug = "yes_please"
+
+[database]
+host = "localhost"
+port = "invalid_port"
+name = "myapp"
