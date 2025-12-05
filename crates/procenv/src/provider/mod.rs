@@ -144,7 +144,7 @@ impl ProviderValue {
 
     /// Marks this value as secret (will be masked in errors).
     #[must_use]
-    pub fn with_secret(mut self, secret: bool) -> Self {
+    pub const fn with_secret(mut self, secret: bool) -> Self {
         self.secret = secret;
 
         self
@@ -185,25 +185,25 @@ impl ProviderSource {
 
     /// Creates a source from environment.
     #[must_use]
-    pub fn environment() -> Self {
+    pub const fn environment() -> Self {
         Self::BuiltIn(Source::Environment)
     }
 
     /// Creates a source from a config file.
     #[must_use]
-    pub fn config_file(path: Option<PathBuf>) -> Self {
+    pub const fn config_file(path: Option<PathBuf>) -> Self {
         Self::BuiltIn(Source::ConfigFile(path))
     }
 
     /// Creates a source from a dotenv file.
     #[must_use]
-    pub fn dotenv_file(path: Option<PathBuf>) -> Self {
+    pub const fn dotenv_file(path: Option<PathBuf>) -> Self {
         Self::BuiltIn(Source::DotenvFile(path))
     }
 
     /// Creates a default source.
     #[must_use]
-    pub fn default_value() -> Self {
+    pub const fn default_value() -> Self {
         Self::BuiltIn(Source::Default)
     }
 
@@ -211,9 +211,9 @@ impl ProviderSource {
     #[must_use]
     pub fn to_source(&self) -> Source {
         match self {
-            ProviderSource::BuiltIn(s) => s.clone(),
+            Self::BuiltIn(s) => s.clone(),
 
-            ProviderSource::Custom { provider, .. } => Source::CustomProvider(provider.clone()),
+            Self::Custom { provider, .. } => Source::CustomProvider(provider.clone()),
         }
     }
 }
@@ -221,16 +221,16 @@ impl ProviderSource {
 impl Display for ProviderSource {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            ProviderSource::BuiltIn(source) => write!(f, "{source}"),
+            Self::BuiltIn(source) => write!(f, "{source}"),
 
-            ProviderSource::Custom {
+            Self::Custom {
                 provider,
                 path: Some(path),
             } => {
                 write!(f, "{provider} ({path})")
             }
 
-            ProviderSource::Custom {
+            Self::Custom {
                 provider,
                 path: None,
             } => {
@@ -318,17 +318,17 @@ impl ProviderError {
     #[must_use]
     pub fn provider_name(&self) -> &str {
         match self {
-            ProviderError::NotFound { provider, .. }
-            | ProviderError::Connection { provider, .. }
-            | ProviderError::InvalidValue { provider, .. }
-            | ProviderError::Unavailable { provider, .. }
-            | ProviderError::Other { provider, .. } => provider,
+            Self::NotFound { provider, .. }
+            | Self::Connection { provider, .. }
+            | Self::InvalidValue { provider, .. }
+            | Self::Unavailable { provider, .. }
+            | Self::Other { provider, .. } => provider,
         }
     }
 
     /// Creates a connection error.
     pub fn connection(provider: impl Into<String>, message: impl Into<String>) -> Self {
-        ProviderError::Connection {
+        Self::Connection {
             provider: provider.into(),
             message: message.into(),
             source: None,
@@ -341,7 +341,7 @@ impl ProviderError {
         message: impl Into<String>,
         source: impl StdError + Send + Sync + 'static,
     ) -> Self {
-        ProviderError::Connection {
+        Self::Connection {
             provider: provider.into(),
             message: message.into(),
             source: Some(Box::new(source)),
@@ -557,13 +557,15 @@ mod tests {
         }
 
         fn get(&self, key: &str) -> ProviderResult<ProviderValue> {
-            match self.values.get(key) {
-                Some(v) => Ok(Some(ProviderValue::new(
-                    v.clone(),
-                    ProviderSource::custom("test", None),
-                ))),
-                None => Ok(None),
-            }
+            self.values.get(key).map_or_else(
+                || Ok(None),
+                |v| {
+                    Ok(Some(ProviderValue::new(
+                        v.clone(),
+                        ProviderSource::custom("test", None),
+                    )))
+                },
+            )
         }
     }
 

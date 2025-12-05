@@ -28,7 +28,7 @@ pub enum WatchCommand {
 }
 
 /// Internal watcher state shared between threads.
-pub(crate) struct WatcherState<T> {
+pub struct WatcherState<T> {
     /// The watched configuration container.
     pub config: Arc<WatchedConfig<T>>,
     /// Files being watched.
@@ -38,7 +38,7 @@ pub(crate) struct WatcherState<T> {
 }
 
 impl<T> WatcherState<T> {
-    pub fn new(config: Arc<WatchedConfig<T>>, watched_paths: Vec<PathBuf>) -> Self {
+    pub const fn new(config: Arc<WatchedConfig<T>>, watched_paths: Vec<PathBuf>) -> Self {
         Self {
             config,
             watched_paths,
@@ -56,7 +56,7 @@ impl<T> WatcherState<T> {
 }
 
 /// Result from a reload attempt.
-pub(crate) enum ReloadResult<T> {
+pub enum ReloadResult<T> {
     /// Reload succeeded with new config.
     Success(ConfigChange<T>),
     /// Reload failed, old config retained.
@@ -66,7 +66,7 @@ pub(crate) enum ReloadResult<T> {
 }
 
 /// Configuration for the internal watcher.
-pub(crate) struct WatcherConfig {
+pub struct WatcherConfig {
     /// Debounce duration for file events.
     pub debounce: Duration,
     /// Paths to watch.
@@ -83,7 +83,7 @@ impl Default for WatcherConfig {
 }
 
 /// Internal file watcher that manages notify events and reloads.
-pub(crate) struct ConfigWatcher<T: Clone + Send + Sync + 'static> {
+pub struct ConfigWatcher<T: Clone + Send + Sync + 'static> {
     /// Shared state.
     state: Arc<WatcherState<T>>,
     /// Command sender for controlling the watcher.
@@ -116,7 +116,7 @@ impl<T: Clone + Send + Sync + 'static> ConfigWatcher<T> {
     {
         let config_container = Arc::new(WatchedConfig::new(initial_config, initial_sources));
         let state = Arc::new(WatcherState::new(
-            config_container.clone(),
+            config_container,
             watcher_config.paths.clone(),
         ));
 
@@ -205,12 +205,12 @@ impl<T: Clone + Send + Sync + 'static> ConfigWatcher<T> {
     }
 
     /// Get the change receiver.
-    pub fn change_receiver(&self) -> &Receiver<ConfigChange<T>> {
+    pub const fn change_receiver(&self) -> &Receiver<ConfigChange<T>> {
         &self.change_rx
     }
 
     /// Get the error receiver.
-    pub fn error_receiver(&self) -> &Receiver<WatchError> {
+    pub const fn error_receiver(&self) -> &Receiver<WatchError> {
         &self.error_rx
     }
 
@@ -411,8 +411,7 @@ mod tests {
         let file_path = dir.path().join("test.toml");
         fs::write(&file_path, "value = \"test\"").unwrap();
 
-        let paths: HashSet<PathBuf> = [file_path.clone()]
-            .iter()
+        let paths: HashSet<PathBuf> = std::iter::once(&file_path)
             .filter_map(|p| p.canonicalize().ok())
             .collect();
 

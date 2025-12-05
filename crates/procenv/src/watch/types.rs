@@ -196,13 +196,13 @@ impl<T> ConfigChange<T> {
 
     /// Returns `true` if this is the initial configuration load.
     #[must_use]
-    pub fn is_initial(&self) -> bool {
+    pub const fn is_initial(&self) -> bool {
         matches!(self.trigger, ChangeTrigger::Initial)
     }
 
     /// Returns `true` if any fields changed.
     #[must_use]
-    pub fn has_changes(&self) -> bool {
+    pub const fn has_changes(&self) -> bool {
         !self.changed_fields.is_empty()
     }
 
@@ -242,9 +242,10 @@ pub enum ChangeTrigger {
 impl ChangeTrigger {
     /// Returns the file path if this trigger is file-related.
     #[must_use]
-    pub fn file_path(&self) -> Option<&PathBuf> {
+    pub const fn file_path(&self) -> Option<&PathBuf> {
         match self {
             Self::FileModified(p) | Self::FileCreated(p) | Self::FileDeleted(p) => Some(p),
+
             _ => None,
         }
     }
@@ -254,13 +255,14 @@ impl ChangeTrigger {
     pub fn env_var(&self) -> Option<&str> {
         match self {
             Self::EnvVarChanged(var) => Some(var),
+
             _ => None,
         }
     }
 
     /// Returns `true` if this is a file-related trigger.
     #[must_use]
-    pub fn is_file_trigger(&self) -> bool {
+    pub const fn is_file_trigger(&self) -> bool {
         matches!(
             self,
             Self::FileModified(_) | Self::FileCreated(_) | Self::FileDeleted(_)
@@ -272,10 +274,15 @@ impl std::fmt::Display for ChangeTrigger {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::FileModified(p) => write!(f, "file modified: {}", p.display()),
+
             Self::FileCreated(p) => write!(f, "file created: {}", p.display()),
+
             Self::FileDeleted(p) => write!(f, "file deleted: {}", p.display()),
+
             Self::EnvVarChanged(var) => write!(f, "env var changed: {var}"),
+
             Self::ManualReload => write!(f, "manual reload"),
+
             Self::Initial => write!(f, "initial load"),
         }
     }

@@ -95,13 +95,13 @@ impl FileFormat {
         let ext = path.extension()?.to_str()?;
 
         match ext.to_lowercase().as_str() {
-            "json" => Some(FileFormat::Json),
+            "json" => Some(Self::Json),
 
             #[cfg(feature = "toml")]
-            "toml" => Some(FileFormat::Toml),
+            "toml" => Some(Self::Toml),
 
             #[cfg(feature = "yaml")]
-            "yaml" | "yml" => Some(FileFormat::Yaml),
+            "yaml" | "yml" => Some(Self::Yaml),
 
             _ => None,
         }
@@ -109,15 +109,15 @@ impl FileFormat {
 
     /// Get the format name for error messages.
     #[must_use]
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         match self {
-            FileFormat::Json => "JSON",
+            Self::Json => "JSON",
 
             #[cfg(feature = "toml")]
-            FileFormat::Toml => "TOML",
+            Self::Toml => "TOML",
 
             #[cfg(feature = "yaml")]
-            FileFormat::Yaml => "YAML",
+            Self::Yaml => "YAML",
         }
     }
 }

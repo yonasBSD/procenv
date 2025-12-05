@@ -92,25 +92,25 @@ pub enum Source {
 impl Display for Source {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Source::Cli => write!(f, "CLI argument"),
+            Self::Cli => write!(f, "CLI argument"),
 
-            Source::Environment => write!(f, "Environment variable"),
+            Self::Environment => write!(f, "Environment variable"),
 
-            Source::DotenvFile(Some(path)) => write!(f, ".env file ({})", path.display()),
+            Self::DotenvFile(Some(path)) => write!(f, ".env file ({})", path.display()),
 
-            Source::DotenvFile(None) => write!(f, ".env file"),
+            Self::DotenvFile(None) => write!(f, ".env file"),
 
-            Source::ConfigFile(Some(path)) => write!(f, "Config file ({})", path.display()),
+            Self::ConfigFile(Some(path)) => write!(f, "Config file ({})", path.display()),
 
-            Source::ConfigFile(None) => write!(f, "Config file"),
+            Self::ConfigFile(None) => write!(f, "Config file"),
 
-            Source::Profile(name) => write!(f, "Profile ({name})"),
+            Self::Profile(name) => write!(f, "Profile ({name})"),
 
-            Source::Default => write!(f, "Default value"),
+            Self::Default => write!(f, "Default value"),
 
-            Source::NotSet => write!(f, "Not set"),
+            Self::NotSet => write!(f, "Not set"),
 
-            Source::CustomProvider(name) => write!(f, "Custom provider ({name})"),
+            Self::CustomProvider(name) => write!(f, "Custom provider ({name})"),
         }
     }
 }
@@ -216,7 +216,7 @@ pub struct ConfigSources {
 impl ConfigSources {
     /// Creates a new empty `ConfigSources` collection.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             entries: Vec::new(),
         }
@@ -242,7 +242,7 @@ impl ConfigSources {
     ///
     /// * `prefix` - The parent field name
     /// * `nested` - Source entries from the nested config
-    pub fn extend_nested(&mut self, prefix: &str, nested: ConfigSources) {
+    pub fn extend_nested(&mut self, prefix: &str, nested: Self) {
         for (field_name, source) in nested.entries {
             let dotted_path = format!("{prefix}.{field_name}");
             self.entries.push((dotted_path, source));
@@ -446,6 +446,7 @@ mod tests {
     fn test_source_custom_provider() {
         let s1 = Source::CustomProvider("vault".to_string());
         let s2 = Source::CustomProvider("vault".to_string());
+
         assert_eq!(s1, s2);
         assert_eq!(s1.to_string(), "Custom provider (vault)");
     }

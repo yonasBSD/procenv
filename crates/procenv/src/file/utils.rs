@@ -83,7 +83,7 @@ impl FileUtils {
         let remaining = &content[safe_offset..];
         let len = remaining
             .find(|c: char| c.is_whitespace() || (c == ',') || (c == '}') || (c == ']'))
-            .unwrap_or(remaining.len().min(20))
+            .unwrap_or_else(|| remaining.len().min(20))
             .max(1);
 
         SourceSpan::new(safe_offset.into(), len)
@@ -276,22 +276,21 @@ impl FileUtils {
 
     #[cfg(feature = "toml")]
     pub(crate) fn toml_parse_error(e: &TOML::de::Error, content: &str, path: &Path) -> FileError {
-        if let Some(span) = e.span() {
-            FileError::Parse {
+        e.span().map_or_else(
+            || FileError::ParseNoSpan {
+                format: "TOML",
+                message: e.to_string(),
+                help: "check for missing quotes, invalid values, or syntax errors".to_string(),
+            },
+            |span| FileError::Parse {
                 format: "TOML",
                 path: path.display().to_string(),
                 src: NamedSource::new(path.display().to_string(), content.to_string()),
                 span: SourceSpan::new(span.start.into(), span.end - span.start),
                 message: e.message().to_string(),
                 help: "check for missing quotes, invalid values, or syntax errors".to_string(),
-            }
-        } else {
-            FileError::ParseNoSpan {
-                format: "TOML",
-                message: e.to_string(),
-                help: "check for missing quotes, invalid values, or syntax errors".to_string(),
-            }
-        }
+            },
+        )
     }
 
     #[cfg(feature = "yaml")]

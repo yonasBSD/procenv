@@ -228,17 +228,18 @@ fn generate_cli_aware_loader(
         let secret = field.is_secret();
 
         // Generate the parse expression based on format
-        let (parse_expr, format_name) = if let Some(format) = field.format_config() {
-            let expr = match format {
-                "json" => quote! { ::serde_json::from_str(cli_val) },
-                "toml" => quote! { ::toml::from_str(cli_val) },
-                "yaml" => quote! { ::serde_saphyr::from_str(cli_val) },
-                _ => quote! { cli_val.parse() },
-            };
-            (expr, format.to_uppercase())
-        } else {
-            (quote! { cli_val.parse() }, type_name.clone())
-        };
+        let (parse_expr, format_name) = field.format_config().map_or_else(
+            || (quote! { cli_val.parse() }, type_name.clone()),
+            |format| {
+                let expr = match format {
+                    "json" => quote! { ::serde_json::from_str(cli_val) },
+                    "toml" => quote! { ::toml::from_str(cli_val) },
+                    "yaml" => quote! { ::serde_saphyr::from_str(cli_val) },
+                    _ => quote! { cli_val.parse() },
+                };
+                (expr, format.to_uppercase())
+            },
+        );
 
         quote! {
             let #from_cli_var: bool;
@@ -276,8 +277,7 @@ fn generate_cli_aware_source_tracking(field: &dyn FieldGenerator) -> QuoteStream
     let from_cli_var = format_ident!("__{}_from_cli", name);
     let source_ident = format_ident!("__{}_source", name);
 
-    if let Some(env_var) = field.env_var_name() {
-        if field.cli_config().is_some() {
+    field.env_var_name().map_or_else(|| field.generate_source_tracking(), |env_var| if field.cli_config().is_some() {
             // CLI-enabled field: check if value came from CLI, profile, env, or default
             let has_profile = field.profile_config().is_some();
             let has_default = field.default_value().is_some();
@@ -354,9 +354,5 @@ fn generate_cli_aware_source_tracking(field: &dyn FieldGenerator) -> QuoteStream
         } else {
             // Non-CLI field: use standard source tracking
             field.generate_source_tracking()
-        }
-    } else {
-        // Flatten fields or fields without env var
-        field.generate_source_tracking()
-    }
+        })
 }

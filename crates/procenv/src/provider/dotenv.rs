@@ -127,10 +127,9 @@ impl DotenvProvider {
 
     /// Returns the full key with prefix handling.
     fn lookup_key(&self, key: &str) -> String {
-        match &self.prefix {
-            Some(p) => format!("{p}{key}"),
-            None => key.to_string(),
-        }
+        self.prefix
+            .as_ref()
+            .map_or_else(|| key.to_string(), |p| format!("{p}{key}"))
     }
 }
 
@@ -152,14 +151,16 @@ impl Provider for DotenvProvider {
     fn get(&self, key: &str) -> ProviderResult<ProviderValue> {
         let lookup = self.lookup_key(key);
 
-        match self.values.get(&lookup) {
-            Some(value) => Ok(Some(ProviderValue {
-                value: value.clone(),
-                source: ProviderSource::BuiltIn(Source::DotenvFile(self.path.clone())),
-                secret: false,
-            })),
-            None => Ok(None),
-        }
+        self.values.get(&lookup).map_or_else(
+            || Ok(None),
+            |value| {
+                Ok(Some(ProviderValue {
+                    value: value.clone(),
+                    source: ProviderSource::BuiltIn(Source::DotenvFile(self.path.clone())),
+                    secret: false,
+                }))
+            },
+        )
     }
 
     fn priority(&self) -> u32 {

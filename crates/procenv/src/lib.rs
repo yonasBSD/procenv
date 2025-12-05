@@ -169,6 +169,9 @@
 //! }
 //! ```
 
+#![deny(missing_docs)]
+#![warn(clippy::pedantic)]
+#![warn(clippy::nursery)]
 #![allow(unused, reason = "False warnings")]
 
 // Re-export the derive macro
@@ -193,7 +196,7 @@ pub use serde;
 #[cfg(feature = "serde")]
 pub use serde::{Deserialize, Serialize};
 
-/// Re-export serde_json when the serde feature is enabled.
+/// Re-export `serde_json` when the serde feature is enabled.
 #[cfg(feature = "serde")]
 pub use serde_json;
 

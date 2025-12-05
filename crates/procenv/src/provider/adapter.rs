@@ -32,7 +32,7 @@ impl<P: AsyncProvider> BlockingAdapter<P> {
     ///
     /// * `provider` - The async provider to wrap
     /// * `runtime` - A handle to a tokio runtime for blocking
-    pub fn new(provider: P, runtime: tokio::runtime::Handle) -> Self {
+    pub const fn new(provider: P, runtime: tokio::runtime::Handle) -> Self {
         Self { provider, runtime }
     }
 

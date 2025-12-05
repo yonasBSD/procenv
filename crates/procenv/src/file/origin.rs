@@ -39,7 +39,7 @@ use super::format::FileFormat;
 
 /// Tracks the origin of a value for error reporting.
 #[derive(Clone, Debug)]
-pub(crate) struct ValueOrigin {
+pub struct ValueOrigin {
     /// Path to the source file
     pub file_path: String,
 
@@ -183,7 +183,7 @@ impl OriginTracker {
 
     /// Check if any files were loaded.
     #[must_use]
-    pub fn has_file_sources(&self) -> bool {
+    pub const fn has_file_sources(&self) -> bool {
         !self.sources.is_empty()
     }
 

@@ -232,7 +232,7 @@ mod tests {
             port: 8080,
             host: "localhost".to_string(),
         };
-        let watched = WatchedConfig::new(config.clone(), ConfigSources::default());
+        let watched = WatchedConfig::new(config, ConfigSources::default());
 
         // Get should return the config
         let got = watched.get();

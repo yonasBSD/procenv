@@ -129,35 +129,37 @@ impl ConfigValue {
     pub fn from_str_infer(s: &str) -> Self {
         // Boolean
         match s.to_ascii_lowercase().as_str() {
-            "true" => return ConfigValue::Boolean(true),
-            "false" => return ConfigValue::Boolean(false),
+            "true" => return Self::Boolean(true),
+
+            "false" => return Self::Boolean(false),
+
             _ => {}
         }
 
         // Unsigned integer (positive numbers)
         if let Ok(n) = s.parse::<u64>() {
-            return ConfigValue::UnsignedInteger(n);
+            return Self::UnsignedInteger(n);
         }
 
         // Signed integer (negative numbers)
         if let Ok(n) = s.parse::<i64>() {
-            return ConfigValue::Integer(n);
+            return Self::Integer(n);
         }
 
         // Float (contains decimal or exponent)
         if (s.contains('.') || s.contains('e') || s.contains('E'))
             && let Ok(f) = s.parse::<f64>()
         {
-            return ConfigValue::Float(f);
+            return Self::Float(f);
         }
 
         // Default: string
-        ConfigValue::String(s.to_string())
+        Self::String(s.to_string())
     }
 
     /// Creates a String variant without type inference.
     pub fn from_str_value(s: impl Into<String>) -> Self {
-        ConfigValue::String(s.into())
+        Self::String(s.into())
     }
 }
 
@@ -170,7 +172,8 @@ impl ConfigValue {
     #[must_use]
     pub fn as_str(&self) -> Option<&str> {
         match self {
-            ConfigValue::String(s) => Some(s),
+            Self::String(s) => Some(s),
+
             _ => None,
         }
     }
@@ -179,76 +182,102 @@ impl ConfigValue {
     #[must_use]
     pub fn as_bool(&self) -> Option<bool> {
         match self {
-            ConfigValue::Boolean(b) => Some(*b),
-            ConfigValue::String(s) => match s.to_ascii_lowercase().as_str() {
+            Self::Boolean(b) => Some(*b),
+
+            Self::String(s) => match s.to_ascii_lowercase().as_str() {
                 "true" | "1" | "yes" | "on" => Some(true),
+
                 "false" | "0" | "no" | "off" => Some(false),
+
                 _ => None,
             },
-            ConfigValue::Integer(n) => Some(*n != 0),
-            ConfigValue::UnsignedInteger(n) => Some(*n != 0),
+
+            Self::Integer(n) => Some(*n != 0),
+
+            Self::UnsignedInteger(n) => Some(*n != 0),
+
             _ => None,
         }
     }
 
     /// Returns as list reference if List variant.
     #[must_use]
-    pub fn as_list(&self) -> Option<&[ConfigValue]> {
+    pub fn as_list(&self) -> Option<&[Self]> {
         match self {
-            ConfigValue::List(v) => Some(v),
+            Self::List(v) => Some(v),
+
             _ => None,
         }
     }
 
     /// Returns as map reference if Map variant.
     #[must_use]
-    pub fn as_map(&self) -> Option<&HashMap<String, ConfigValue>> {
+    pub const fn as_map(&self) -> Option<&HashMap<String, Self>> {
         match self {
-            ConfigValue::Map(m) => Some(m),
+            Self::Map(m) => Some(m),
+
             _ => None,
         }
     }
 
     /// Checks if None variant.
     #[must_use]
-    pub fn is_none(&self) -> bool {
-        matches!(self, ConfigValue::None)
+    pub const fn is_none(&self) -> bool {
+        matches!(self, Self::None)
     }
 
     /// Checks if not None.
     #[must_use]
-    pub fn is_some(&self) -> bool {
+    pub const fn is_some(&self) -> bool {
         !self.is_none()
     }
 
     /// Returns the type name of this value.
     #[must_use]
-    pub fn type_name(&self) -> &'static str {
+    pub const fn type_name(&self) -> &'static str {
         match self {
-            ConfigValue::String(_) => "string",
-            ConfigValue::Integer(_) => "integer",
-            ConfigValue::UnsignedInteger(_) => "unsigned integer",
-            ConfigValue::Float(_) => "float",
-            ConfigValue::Boolean(_) => "boolean",
-            ConfigValue::List(_) => "list",
-            ConfigValue::Map(_) => "map",
-            ConfigValue::None => "none",
+            Self::String(_) => "string",
+
+            Self::Integer(_) => "integer",
+
+            Self::UnsignedInteger(_) => "unsigned integer",
+
+            Self::Float(_) => "float",
+
+            Self::Boolean(_) => "boolean",
+
+            Self::List(_) => "list",
+
+            Self::Map(_) => "map",
+
+            Self::None => "none",
         }
     }
 
     // Generate to_* methods using macro + ToPrimitive
     impl_to_primitive! {
         to_i8 -> i8,
+
         to_i16 -> i16,
+
         to_i32 -> i32,
+
         to_i64 -> i64,
+
         to_isize -> isize,
+
         to_u8 -> u8,
+
         to_u16 -> u16,
+
         to_u32 -> u32,
+
         to_u64 -> u64,
+
         to_usize -> usize,
+
         to_f32 -> f32,
+
         to_f64 -> f64,
     }
 }
@@ -270,11 +299,16 @@ impl ConfigValue {
     /// ```
     pub fn cast<T: NumCast>(&self) -> Option<T> {
         match self {
-            ConfigValue::Integer(n) => NumCast::from(*n),
-            ConfigValue::UnsignedInteger(n) => NumCast::from(*n),
-            ConfigValue::Float(f) => NumCast::from(*f),
-            ConfigValue::String(s) => s.parse::<f64>().ok().and_then(NumCast::from),
-            ConfigValue::Boolean(b) => NumCast::from(<i64 as From<bool>>::from(*b)),
+            Self::Integer(n) => NumCast::from(*n),
+
+            Self::UnsignedInteger(n) => NumCast::from(*n),
+
+            Self::Float(f) => NumCast::from(*f),
+
+            Self::String(s) => s.parse::<f64>().ok().and_then(NumCast::from),
+
+            Self::Boolean(b) => NumCast::from(<i64 as From<bool>>::from(*b)),
+
             _ => None,
         }
     }
@@ -295,23 +329,32 @@ impl ConfigValue {
     #[must_use]
     pub fn into_string(self) -> String {
         match self {
-            ConfigValue::String(s) => s,
-            ConfigValue::Integer(n) => n.to_string(),
-            ConfigValue::UnsignedInteger(n) => n.to_string(),
-            ConfigValue::Float(f) => f.to_string(),
-            ConfigValue::Boolean(b) => b.to_string(),
-            ConfigValue::List(v) => {
-                let items: Vec<_> = v.into_iter().map(ConfigValue::into_string).collect();
+            Self::String(s) => s,
+
+            Self::Integer(n) => n.to_string(),
+
+            Self::UnsignedInteger(n) => n.to_string(),
+
+            Self::Float(f) => f.to_string(),
+
+            Self::Boolean(b) => b.to_string(),
+
+            Self::List(v) => {
+                let items: Vec<_> = v.into_iter().map(Self::into_string).collect();
+
                 format!("[{}]", items.join(", "))
             }
-            ConfigValue::Map(m) => {
+
+            Self::Map(m) => {
                 let items: Vec<_> = m
                     .into_iter()
                     .map(|(k, v)| format!("{}: {}", k, v.into_string()))
                     .collect();
+
                 format!("{{{}}}", items.join(", "))
             }
-            ConfigValue::None => String::new(),
+
+            Self::None => String::new(),
         }
     }
 
@@ -322,7 +365,7 @@ impl ConfigValue {
         use std::borrow::Cow;
 
         match self {
-            ConfigValue::String(s) => Cow::Borrowed(s),
+            Self::String(s) => Cow::Borrowed(s),
 
             // Use Display trait instead of cloning + into_string()
             other => Cow::Owned(other.to_string()),
@@ -337,12 +380,12 @@ impl ConfigValue {
 impl ConfigValue {
     /// Gets nested value by dotted path (e.g., `"database.host"`).
     #[must_use]
-    pub fn get_path(&self, path: &str) -> Option<&ConfigValue> {
+    pub fn get_path(&self, path: &str) -> Option<&Self> {
         let mut current = self;
 
         for key in path.split('.') {
             match current {
-                ConfigValue::Map(m) => {
+                Self::Map(m) => {
                     current = m.get(key)?;
                 }
 
@@ -354,16 +397,19 @@ impl ConfigValue {
     }
 
     /// Gets mutable nested value by dotted path.
-    pub fn get_path_mut(&mut self, path: &str) -> Option<&mut ConfigValue> {
+    pub fn get_path_mut(&mut self, path: &str) -> Option<&mut Self> {
         let mut current = self;
+
         for key in path.split('.') {
             match current {
-                ConfigValue::Map(m) => {
+                Self::Map(m) => {
                     current = m.get_mut(key)?;
                 }
+
                 _ => return None,
             }
         }
+
         Some(current)
     }
 }
@@ -374,31 +420,31 @@ impl ConfigValue {
 
 impl From<String> for ConfigValue {
     fn from(s: String) -> Self {
-        ConfigValue::String(s)
+        Self::String(s)
     }
 }
 
 impl From<&str> for ConfigValue {
     fn from(s: &str) -> Self {
-        ConfigValue::String(s.to_string())
+        Self::String(s.to_string())
     }
 }
 
 impl From<bool> for ConfigValue {
     fn from(b: bool) -> Self {
-        ConfigValue::Boolean(b)
+        Self::Boolean(b)
     }
 }
 
 impl From<f32> for ConfigValue {
     fn from(f: f32) -> Self {
-        ConfigValue::Float(<f64 as From<f32>>::from(f))
+        Self::Float(<f64 as From<f32>>::from(f))
     }
 }
 
 impl From<f64> for ConfigValue {
     fn from(f: f64) -> Self {
-        ConfigValue::Float(f)
+        Self::Float(f)
     }
 }
 
@@ -409,42 +455,39 @@ impl_from_unsigned!(u8, u16, u32);
 // i64/u64/isize/usize need manual impls since From<isize/usize> -> i64/u64 doesn't exist
 impl From<i64> for ConfigValue {
     fn from(n: i64) -> Self {
-        ConfigValue::Integer(n)
+        Self::Integer(n)
     }
 }
 
 impl From<u64> for ConfigValue {
     fn from(n: u64) -> Self {
-        ConfigValue::UnsignedInteger(n)
+        Self::UnsignedInteger(n)
     }
 }
 
 #[allow(clippy::cast_possible_wrap)]
 impl From<isize> for ConfigValue {
     fn from(n: isize) -> Self {
-        ConfigValue::Integer(n as i64)
+        Self::Integer(n as i64)
     }
 }
 
 #[allow(clippy::cast_possible_truncation)]
 impl From<usize> for ConfigValue {
     fn from(n: usize) -> Self {
-        ConfigValue::UnsignedInteger(n as u64)
+        Self::UnsignedInteger(n as u64)
     }
 }
 
-impl<T: Into<ConfigValue>> From<Vec<T>> for ConfigValue {
+impl<T: Into<Self>> From<Vec<T>> for ConfigValue {
     fn from(v: Vec<T>) -> Self {
-        ConfigValue::List(v.into_iter().map(Into::into).collect())
+        Self::List(v.into_iter().map(Into::into).collect())
     }
 }
 
-impl<T: Into<ConfigValue>> From<Option<T>> for ConfigValue {
+impl<T: Into<Self>> From<Option<T>> for ConfigValue {
     fn from(opt: Option<T>) -> Self {
-        match opt {
-            Some(v) => v.into(),
-            None => ConfigValue::None,
-        }
+        opt.map_or(Self::None, std::convert::Into::into)
     }
 }
 
@@ -461,30 +504,28 @@ impl ConfigValue {
     #[must_use]
     pub fn from_json(value: SJSON::Value) -> Self {
         match value {
-            SJSON::Value::Null => ConfigValue::None,
+            SJSON::Value::Null => Self::None,
 
-            SJSON::Value::Bool(b) => ConfigValue::Boolean(b),
+            SJSON::Value::Bool(b) => Self::Boolean(b),
 
-            SJSON::Value::Number(n) => {
-                if let Some(i) = n.as_i64() {
-                    ConfigValue::Integer(i)
-                } else if let Some(u) = n.as_u64() {
-                    ConfigValue::UnsignedInteger(u)
-                } else if let Some(f) = n.as_f64() {
-                    ConfigValue::Float(f)
-                } else {
-                    // Fallback: Convert to String.
-                    ConfigValue::String(n.to_string())
-                }
-            }
+            SJSON::Value::Number(n) => n.as_i64().map_or_else(
+                || {
+                    n.as_u64().map_or_else(
+                        || {
+                            n.as_f64()
+                                .map_or_else(|| Self::String(n.to_string()), ConfigValue::Float)
+                        },
+                        ConfigValue::UnsignedInteger,
+                    )
+                },
+                ConfigValue::Integer,
+            ),
 
-            SJSON::Value::String(s) => ConfigValue::String(s),
+            SJSON::Value::String(s) => Self::String(s),
 
-            SJSON::Value::Array(arr) => {
-                ConfigValue::List(arr.into_iter().map(Self::from_json).collect())
-            }
+            SJSON::Value::Array(arr) => Self::List(arr.into_iter().map(Self::from_json).collect()),
 
-            SJSON::Value::Object(map) => ConfigValue::Map(
+            SJSON::Value::Object(map) => Self::Map(
                 map.into_iter()
                     .map(|(k, v)| (k, Self::from_json(v)))
                     .collect(),
@@ -541,15 +582,16 @@ impl ConfigValue {
     #[must_use]
     pub fn extract_string(&self) -> String {
         match self {
-            ConfigValue::String(s) => s.clone(),
+            Self::String(s) => s.clone(),
+
             other => other.to_string(),
         }
     }
 
     /// Checks if this value represents "not set" (null/none).
     #[must_use]
-    pub fn is_null(&self) -> bool {
-        matches!(self, ConfigValue::None)
+    pub const fn is_null(&self) -> bool {
+        matches!(self, Self::None)
     }
 }
 
@@ -560,38 +602,52 @@ impl ConfigValue {
 impl Display for ConfigValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            ConfigValue::String(s) => write!(f, "{s}"),
-            ConfigValue::Integer(n) => write!(f, "{n}"),
-            ConfigValue::UnsignedInteger(n) => write!(f, "{n}"),
-            ConfigValue::Float(n) => write!(f, "{n}"),
-            ConfigValue::Boolean(b) => write!(f, "{b}"),
-            ConfigValue::List(v) => {
+            Self::String(s) => write!(f, "{s}"),
+
+            Self::Integer(n) => write!(f, "{n}"),
+
+            Self::UnsignedInteger(n) => write!(f, "{n}"),
+
+            Self::Float(n) => write!(f, "{n}"),
+
+            Self::Boolean(b) => write!(f, "{b}"),
+
+            Self::List(v) => {
                 write!(f, "[")?;
+
                 for (i, item) in v.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
+
                     write!(f, "{item}")?;
                 }
+
                 write!(f, "]")
             }
-            ConfigValue::Map(m) => {
+
+            Self::Map(m) => {
                 write!(f, "{{")?;
+
                 // Sort keys for deterministic output
                 let mut keys: Vec<_> = m.keys().collect();
                 keys.sort();
+
                 for (i, k) in keys.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
+
                     // SAFETY: We're iterating over keys from this map, so get() is guaranteed Some
                     if let Some(v) = m.get(*k) {
                         write!(f, "{k}: {v}")?;
                     }
                 }
+
                 write!(f, "}}")
             }
-            ConfigValue::None => write!(f, "<none>"),
+
+            Self::None => write!(f, "<none>"),
         }
     }
 }

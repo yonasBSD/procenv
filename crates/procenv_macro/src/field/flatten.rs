@@ -83,23 +83,22 @@ impl FieldGenerator for FlattenField {
         let nested_sources_ident = format_ident!("__{}_nested_sources", field_name);
 
         // Determine how to call the nested type based on whether we have a prefix
-        let load_call = if let Some(prefix) = &self.prefix {
-            // When a prefix is explicitly specified, use __from_env_with_external_prefix
-            // and combine with any external prefix from parent
-            quote! {
-                <#ty>::__from_env_with_external_prefix(
-                    std::option::Option::Some(
-                        &format!("{}{}", __external_prefix.unwrap_or(""), #prefix)
+        let load_call = self.prefix.as_ref().map_or_else(
+            || {
+                quote! {
+                    <#ty>::from_env_with_sources()
+                }
+            },
+            |prefix| {
+                quote! {
+                    <#ty>::__from_env_with_external_prefix(
+                        std::option::Option::Some(
+                            &format!("{}{}", __external_prefix.unwrap_or(""), #prefix)
+                        )
                     )
-                )
-            }
-        } else {
-            // No prefix specified - use regular from_env_with_sources for backwards compatibility
-            // This maintains the original behavior where flatten fields don't inherit parent prefix
-            quote! {
-                <#ty>::from_env_with_sources()
-            }
-        };
+                }
+            },
+        );
 
         quote! {
             let (#field_name, #nested_sources_ident): (
@@ -160,32 +159,31 @@ impl FieldGenerator for FlattenField {
         let ty = &self.ty;
 
         // Check if this flatten field has a prefix
-        if let Some(prefix) = &self.prefix {
-            // Apply prefix to each env var name in the nested entries
-            quote! {
-                {
-                    let nested = <#ty>::env_example_entries();
-                    // Prepend prefix to each VAR_NAME= line
-                    nested.lines()
-                        .map(|line| {
-                            // Skip comments and empty lines
-                            if line.starts_with('#') || line.is_empty() {
-                                line.to_string()
-                            } else if let std::option::Option::Some(eq_pos) = line.find('=') {
-                                // Prepend prefix to the variable name
-                                format!("{}{}", #prefix, line)
-                            } else {
-                                line.to_string()
-                            }
-                        })
-                        .collect::<std::vec::Vec<_>>()
-                        .join("\n")
+        self.prefix.as_ref().map_or_else(
+            || quote! { <#ty>::env_example_entries() },
+            |prefix| {
+                quote! {
+                    {
+                        let nested = <#ty>::env_example_entries();
+                        // Prepend prefix to each VAR_NAME= line
+                        nested.lines()
+                            .map(|line| {
+                                // Skip comments and empty lines
+                                if line.starts_with('#') || line.is_empty() {
+                                    line.to_string()
+                                } else if let std::option::Option::Some(eq_pos) = line.find('=') {
+                                    // Prepend prefix to the variable name
+                                    format!("{}{}", #prefix, line)
+                                } else {
+                                    line.to_string()
+                                }
+                            })
+                            .collect::<std::vec::Vec<_>>()
+                            .join("\n")
+                    }
                 }
-            }
-        } else {
-            // No prefix - just delegate to the nested type
-            quote! { <#ty>::env_example_entries() }
-        }
+            },
+        )
     }
 
     fn is_flatten(&self) -> bool {

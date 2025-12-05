@@ -132,7 +132,48 @@ impl FieldGenerator for OptionalField {
         let profile_used_ident = format_ident!("__{}_from_profile", name);
 
         // Check if this field has profile configuration
-        if let Some(profile_config) = &self.profile {
+        self.profile.as_ref().map_or_else(|| quote! {
+                // Build effective env var name with external prefix
+            let #effective_var_ident: std::string::String = format!(
+                "{}{}",
+                __external_prefix.unwrap_or(""),
+                #base_var
+            );
+
+            // No profile for this field
+            let #profile_used_ident: bool = false;
+
+            let #name: std::option::Option<#inner> = match std::env::var(&#effective_var_ident) {
+                std::result::Result::Ok(val) => {
+                    match val.parse::<#inner>() {
+                        std::result::Result::Ok(v) => std::option::Option::Some(v),
+
+                        std::result::Result::Err(e) => {
+                            __errors.push(::procenv::Error::parse(
+                                &#effective_var_ident,
+                                val,
+                                #secret,
+                                #type_name,
+                                std::boxed::Box::new(e),
+                            ));
+
+                            std::option::Option::None
+                        }
+                    }
+                }
+
+                std::result::Result::Err(e) => {
+                    // Only report error for invalid UTF-8
+                    if let std::env::VarError::NotUnicode(_) = e {
+                        __errors.push(::procenv::Error::InvalidUtf8 {
+                            var: #effective_var_ident.clone(),
+                        });
+                    }
+
+                    std::option::Option::None
+                }
+            };
+        }, |profile_config| {
             // Generate match arms for each profile
             let match_arms: Vec<QuoteStream> = profile_config
                 .values
@@ -203,51 +244,7 @@ impl FieldGenerator for OptionalField {
                     std::option::Option::None => std::option::Option::None,
                 };
             }
-        } else {
-            // No profile config - use original simple logic
-            quote! {
-                // Build effective env var name with external prefix
-                let #effective_var_ident: std::string::String = format!(
-                    "{}{}",
-                    __external_prefix.unwrap_or(""),
-                    #base_var
-                );
-
-                // No profile for this field
-                let #profile_used_ident: bool = false;
-
-                let #name: std::option::Option<#inner> = match std::env::var(&#effective_var_ident) {
-                    std::result::Result::Ok(val) => {
-                        match val.parse::<#inner>() {
-                            std::result::Result::Ok(v) => std::option::Option::Some(v),
-
-                            std::result::Result::Err(e) => {
-                                __errors.push(::procenv::Error::parse(
-                                    &#effective_var_ident,
-                                    val,
-                                    #secret,
-                                    #type_name,
-                                    std::boxed::Box::new(e),
-                                ));
-
-                                std::option::Option::None
-                            }
-                        }
-                    }
-
-                    std::result::Result::Err(e) => {
-                        // Only report error for invalid UTF-8
-                        if let std::env::VarError::NotUnicode(_) = e {
-                            __errors.push(::procenv::Error::InvalidUtf8 {
-                                var: #effective_var_ident.clone(),
-                            });
-                        }
-
-                        std::option::Option::None
-                    }
-                };
-            }
-        }
+        })
     }
 
     fn generate_assignment(&self) -> QuoteStream {

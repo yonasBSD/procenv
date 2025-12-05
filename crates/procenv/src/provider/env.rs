@@ -23,7 +23,7 @@ pub struct EnvProvider {
 impl EnvProvider {
     /// Create a new environment provider without a prefix.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { prefix: None }
     }
 
@@ -39,11 +39,9 @@ impl EnvProvider {
 
     /// Returns the full key name with prefix applied.
     fn full_key(&self, key: &str) -> String {
-        match &self.prefix {
-            Some(p) => format!("{p}{key}"),
-
-            None => key.to_string(),
-        }
+        self.prefix
+            .as_ref()
+            .map_or_else(|| key.to_string(), |p| format!("{p}{key}"))
     }
 }
 

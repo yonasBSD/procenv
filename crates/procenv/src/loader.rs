@@ -278,7 +278,7 @@ impl ConfigLoader {
 
     /// Checks if any errors have occurred.
     #[must_use]
-    pub fn has_errors(&self) -> bool {
+    pub const fn has_errors(&self) -> bool {
         !self.errors.is_empty()
     }
 
@@ -295,7 +295,7 @@ impl ConfigLoader {
 
     /// Returns the source attribution for loaded values.
     #[must_use]
-    pub fn sources(&self) -> &ConfigSources {
+    pub const fn sources(&self) -> &ConfigSources {
         &self.sources
     }
 
@@ -313,10 +313,15 @@ impl ConfigLoader {
     ///
     /// Returns any accumulated errors from the loading process.
     ///
+    /// # Panics
+    ///
+    /// Panics if internal invariant is violated (single-element vector yields `None`).
+    /// This is unreachable in practice due to the preceding length check.
     #[allow(clippy::result_large_err)]
     pub fn finish(self) -> Result<ConfigSources, Error> {
         match self.errors.len() {
             0 => Ok(self.sources),
+
             1 => {
                 // SAFETY: We just checked len() == 1, so into_iter().next() is guaranteed Some
                 let err = self.errors.into_iter().next();

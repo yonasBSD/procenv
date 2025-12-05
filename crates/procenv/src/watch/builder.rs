@@ -127,7 +127,7 @@ impl<T: Clone + Send + Sync + 'static> WatchBuilder<T> {
     ///     .debounce(Duration::from_millis(200))
     /// ```
     #[must_use]
-    pub fn debounce(mut self, duration: Duration) -> Self {
+    pub const fn debounce(mut self, duration: Duration) -> Self {
         self.debounce = duration;
         self
     }

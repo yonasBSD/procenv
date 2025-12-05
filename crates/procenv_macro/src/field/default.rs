@@ -146,7 +146,54 @@ impl FieldGenerator for DefaultField {
         let profile_used_ident = format_ident!("__{}_from_profile", field_name);
 
         // Check if this field has profile configuration
-        if let Some(profile_config) = &self.profile {
+        self.profile.as_ref().map_or_else(|| quote! {
+            let mut #used_default_ident = false;
+
+            // Build effective env var name with external prefix
+            let #effective_var_ident: std::string::String = format!(
+                "{}{}",
+                __external_prefix.unwrap_or(""),
+                #base_var
+            );
+
+            // No profile for this field
+            let #profile_used_ident: bool = false;
+
+            let #field_name: std::option::Option<#ty> = (|| {
+                let val = match std::env::var(&#effective_var_ident) {
+                    std::result::Result::Ok(v) => v,
+
+                    std::result::Result::Err(std::env::VarError::NotPresent) => {
+                        #used_default_ident = true;
+                        #default.to_string()
+                    },
+
+                    std::result::Result::Err(std::env::VarError::NotUnicode(_)) => {
+                        __errors.push(::procenv::Error::InvalidUtf8 {
+                            var: #effective_var_ident.clone(),
+                        });
+
+                        return std::option::Option::None;
+                    }
+                };
+
+                match val.parse::<#ty>() {
+                    std::result::Result::Ok(v) => std::option::Option::Some(v),
+
+                    std::result::Result::Err(e) => {
+                        __errors.push(::procenv::Error::parse(
+                            &#effective_var_ident,
+                            val,
+                            #secret,
+                            std::any::type_name::<#ty>(),
+                            std::boxed::Box::new(e),
+                        ));
+
+                        std::option::Option::None
+                    }
+                }
+            })();
+        }, |profile_config| {
             // Generate match arms for each profile
             let match_arms: Vec<QuoteStream> = profile_config
                 .values
@@ -214,57 +261,7 @@ impl FieldGenerator for DefaultField {
                     }
                 };
             }
-        } else {
-            // No profile config - use original simple logic
-            quote! {
-                let mut #used_default_ident = false;
-
-                // Build effective env var name with external prefix
-                let #effective_var_ident: std::string::String = format!(
-                    "{}{}",
-                    __external_prefix.unwrap_or(""),
-                    #base_var
-                );
-
-                // No profile for this field
-                let #profile_used_ident: bool = false;
-
-                let #field_name: std::option::Option<#ty> = (|| {
-                    let val = match std::env::var(&#effective_var_ident) {
-                        std::result::Result::Ok(v) => v,
-
-                        std::result::Result::Err(std::env::VarError::NotPresent) => {
-                            #used_default_ident = true;
-                            #default.to_string()
-                        },
-
-                        std::result::Result::Err(std::env::VarError::NotUnicode(_)) => {
-                            __errors.push(::procenv::Error::InvalidUtf8 {
-                                var: #effective_var_ident.clone(),
-                            });
-
-                            return std::option::Option::None;
-                        }
-                    };
-
-                    match val.parse::<#ty>() {
-                        std::result::Result::Ok(v) => std::option::Option::Some(v),
-
-                        std::result::Result::Err(e) => {
-                            __errors.push(::procenv::Error::parse(
-                                &#effective_var_ident,
-                                val,
-                                #secret,
-                                std::any::type_name::<#ty>(),
-                                std::boxed::Box::new(e),
-                            ));
-
-                            std::option::Option::None
-                        }
-                    }
-                })();
-            }
-        }
+        })
     }
 
     fn generate_assignment(&self) -> QuoteStream {

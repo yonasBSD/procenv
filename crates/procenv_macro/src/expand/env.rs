@@ -130,24 +130,25 @@ pub fn generate_profile_setup(env_config_attr: &EnvConfigAttr) -> QuoteStream {
     };
 
     // Generate profile validation if profiles list is provided
-    let validation = if let Some(profiles) = &env_config_attr.profiles {
-        let profile_strs: Vec<&str> = profiles.iter().map(String::as_str).collect();
-        quote! {
-            // Validate profile against allowed list
-            if let std::option::Option::Some(ref p) = __profile {
-                let valid_profiles: &[&str] = &[#(#profile_strs),*];
-                if !valid_profiles.contains(&p.as_str()) {
-                    __errors.push(::procenv::Error::invalid_profile(
-                        p.clone(),
-                        #profile_env,
-                        valid_profiles.to_vec(),
-                    ));
+    let validation = env_config_attr.profiles.as_ref().map_or_else(
+        || quote! {},
+        |profiles| {
+            let profile_strs: Vec<&str> = profiles.iter().map(String::as_str).collect();
+            quote! {
+                // Validate profile against allowed list
+                if let std::option::Option::Some(ref p) = __profile {
+                    let valid_profiles: &[&str] = &[#(#profile_strs),*];
+                    if !valid_profiles.contains(&p.as_str()) {
+                        __errors.push(::procenv::Error::invalid_profile(
+                            p.clone(),
+                            #profile_env,
+                            valid_profiles.to_vec(),
+                        ));
+                    }
                 }
             }
-        }
-    } else {
-        quote! {}
-    };
+        },
+    );
 
     quote! {
         // Read profile from environment variable, reporting UTF-8 errors
@@ -166,16 +167,16 @@ pub fn generate_profile_setup(env_config_attr: &EnvConfigAttr) -> QuoteStream {
 }
 
 /// Generate field loader with profile and format support.
+#[expect(clippy::too_many_lines, reason = "Complex macro logic.")]
 pub fn generate_field_loader(
     field: &dyn FieldGenerator,
     _env_config_attr: &EnvConfigAttr,
 ) -> QuoteStream {
     // Determine which loader to use based on format
-    let base_loader = if let Some(format) = field.format_config() {
-        field.generate_format_loader(format)
-    } else {
-        field.generate_loader()
-    };
+    let base_loader = field.format_config().map_or_else(
+        || field.generate_loader(),
+        |format| field.generate_format_loader(format),
+    );
 
     // Check if this field has profile-specific values
     let Some(profile_config) = field.profile_config() else {
@@ -205,29 +206,37 @@ pub fn generate_field_loader(
     let used_default_ident = format_ident!("__{}_used_default", name);
 
     // Generate the parse/deserialize expression based on format
-    let (parse_expr, type_desc) = if let Some(format) = field.format_config() {
-        let expr = match format {
-            "json" => quote! { ::serde_json::from_str(&val) },
-            "toml" => quote! { ::toml::from_str(&val) },
-            "yaml" => quote! { ::serde_saphyr::from_str(&val) },
-            _ => quote! { val.parse() },
-        };
-        (expr, format!("{} data", format.to_uppercase()))
-    } else {
-        (quote! { val.parse() }, ty.clone())
-    };
+    let (parse_expr, type_desc) = field.format_config().map_or_else(
+        || (quote! { val.parse() }, ty.clone()),
+        |format| {
+            let expr = match format {
+                "json" => quote! { ::serde_json::from_str(&val) },
+
+                "toml" => quote! { ::toml::from_str(&val) },
+
+                "yaml" => quote! { ::serde_saphyr::from_str(&val) },
+
+                _ => quote! { val.parse() },
+            };
+
+            (expr, format!("{} data", format.to_uppercase()))
+        },
+    );
 
     // Generate fallback code for when no env var and no profile match
-    let no_value_handling = if let Some(default) = default_value {
-        quote! {
-            #used_default_ident = true;
-            (std::option::Option::Some(#default.to_string()), false)
-        }
-    } else {
-        quote! {
-            (std::option::Option::None, false)
-        }
-    };
+    let no_value_handling = default_value.map_or_else(
+        || {
+            quote! {
+                (std::option::Option::None, false)
+            }
+        },
+        |default| {
+            quote! {
+                #used_default_ident = true;
+                (std::option::Option::Some(#default.to_string()), false)
+            }
+        },
+    );
 
     // Generate error or None handling for missing value
     // Optional fields should return None without error, same as fields with defaults
@@ -445,7 +454,7 @@ fn generate_simple_source_tracking(field: &dyn FieldGenerator) -> QuoteStream {
     }
 
     // For regular fields
-    if let Some(env_var) = field.env_var_name() {
+    field.env_var_name().map_or_else(|| quote! {}, |env_var| {
         let source_ident = format_ident!("__{}_source", name);
         let effective_var_ident = format_ident!("__{}_effective_var", name);
         let has_default = field.default_value().is_some();
@@ -527,9 +536,7 @@ fn generate_simple_source_tracking(field: &dyn FieldGenerator) -> QuoteStream {
                 __sources.add(#name_str, #source_ident);
             }
         }
-    } else {
-        quote! {}
-    }
+    })
 }
 
 /// Generate field loader with external prefix, format, and profile support.
@@ -580,29 +587,33 @@ fn generate_field_loader_with_prefix(field: &dyn FieldGenerator) -> QuoteStream 
     let used_default_ident = format_ident!("__{}_used_default", name);
 
     // Generate the parse/deserialize expression based on format
-    let (parse_expr, type_desc) = if let Some(format) = field.format_config() {
-        let expr = match format {
-            "json" => quote! { ::serde_json::from_str(&val) },
-            "toml" => quote! { ::toml::from_str(&val) },
-            "yaml" => quote! { ::serde_saphyr::from_str(&val) },
-            _ => quote! { val.parse() },
-        };
-        (expr, format!("{} data", format.to_uppercase()))
-    } else {
-        (quote! { val.parse() }, ty.clone())
-    };
+    let (parse_expr, type_desc) = field.format_config().map_or_else(
+        || (quote! { val.parse() }, ty.clone()),
+        |format| {
+            let expr = match format {
+                "json" => quote! { ::serde_json::from_str(&val) },
+                "toml" => quote! { ::toml::from_str(&val) },
+                "yaml" => quote! { ::serde_saphyr::from_str(&val) },
+                _ => quote! { val.parse() },
+            };
+            (expr, format!("{} data", format.to_uppercase()))
+        },
+    );
 
     // Generate fallback code for when no env var and no profile match
-    let no_value_handling = if let Some(default) = default_value {
-        quote! {
-            #used_default_ident = true;
-            (std::option::Option::Some(#default.to_string()), false)
-        }
-    } else {
-        quote! {
-            (std::option::Option::None, false)
-        }
-    };
+    let no_value_handling = default_value.map_or_else(
+        || {
+            quote! {
+                (std::option::Option::None, false)
+            }
+        },
+        |default| {
+            quote! {
+                #used_default_ident = true;
+                (std::option::Option::Some(#default.to_string()), false)
+            }
+        },
+    );
 
     // Generate error or None handling for missing value
     // Optional fields should return None without error, same as fields with defaults
@@ -709,37 +720,41 @@ fn generate_format_loader_with_prefix(field: &dyn FieldGenerator, format: &str) 
     };
 
     // Generate handling for missing env var based on field configuration
-    let missing_handling = if let Some(default) = default_value {
-        // Has default: use it (deserialize the default string)
-        quote! {
-            {
-                #used_default_ident = true;
-                let val = #default.to_string();
-                match #default_deserialize_call {
-                    std::result::Result::Ok(v) => std::option::Option::Some(v),
-                    std::result::Result::Err(e) => {
-                        __errors.push(::procenv::Error::parse(
-                            &#effective_var_ident,
-                            val,
-                            #secret,
-                            concat!(#format_name, " data"),
-                            std::boxed::Box::new(e),
-                        ));
-                        std::option::Option::None
+    let missing_handling = default_value.map_or_else(
+        || {
+            if is_optional {
+                // Optional without default: return None, no error
+                quote! { std::option::Option::None }
+            } else {
+                // Required without default: push error
+                quote! {
+                    __errors.push(::procenv::Error::missing(&#effective_var_ident));
+                    std::option::Option::None
+                }
+            }
+        },
+        |default| {
+            quote! {
+                {
+                    #used_default_ident = true;
+                    let val = #default.to_string();
+                    match #default_deserialize_call {
+                        std::result::Result::Ok(v) => std::option::Option::Some(v),
+                        std::result::Result::Err(e) => {
+                            __errors.push(::procenv::Error::parse(
+                                &#effective_var_ident,
+                                val,
+                                #secret,
+                                concat!(#format_name, " data"),
+                                std::boxed::Box::new(e),
+                            ));
+                            std::option::Option::None
+                        }
                     }
                 }
             }
-        }
-    } else if is_optional {
-        // Optional without default: return None, no error
-        quote! { std::option::Option::None }
-    } else {
-        // Required without default: push error
-        quote! {
-            __errors.push(::procenv::Error::missing(&#effective_var_ident));
-            std::option::Option::None
-        }
-    };
+        },
+    );
 
     quote! {
         // Build effective env var name with external prefix

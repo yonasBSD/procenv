@@ -29,6 +29,10 @@
 //!
 //! It also generates a custom `Debug` implementation that masks secret fields.
 
+#![deny(missing_docs)]
+#![warn(clippy::pedantic)]
+#![warn(clippy::nursery)]
+
 use proc_macro::TokenStream;
 use syn::{DeriveInput, parse_macro_input};
 

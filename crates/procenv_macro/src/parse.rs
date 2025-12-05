@@ -123,6 +123,7 @@ pub fn extract_doc_comment(field: &Field) -> Option<String> {
             if !result.is_empty() {
                 result.push(' ');
             }
+
             result.push_str(lit_str.value().trim());
         }
     }
@@ -764,7 +765,7 @@ pub struct FileConfig {
 
 impl FileConfig {
     /// Create a required file config.
-    pub fn required(path: String) -> Self {
+    pub const fn required(path: String) -> Self {
         Self {
             path,
             required: true,
@@ -772,7 +773,7 @@ impl FileConfig {
     }
 
     /// Create an optional file config.
-    pub fn optional(path: String) -> Self {
+    pub const fn optional(path: String) -> Self {
         Self {
             path,
             required: false,
@@ -860,7 +861,7 @@ impl EnvConfigAttr {
     /// #[env_config(file_optional = "config.local.toml")] // Optional config file
     /// ```
     pub fn parse_from_struct(input: &DeriveInput) -> SynResult<Self> {
-        let mut result = EnvConfigAttr::default();
+        let mut result = Self::default();
 
         for attr in &input.attrs {
             if !attr.path().is_ident("env_config") {

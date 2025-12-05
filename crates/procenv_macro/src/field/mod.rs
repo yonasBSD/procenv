@@ -349,11 +349,9 @@ pub trait FieldGenerator {
         let name = self.name();
         let name_str = name.to_string();
 
-        let short_attr = if let Some(short) = cli.short {
-            quote! { .short(#short) }
-        } else {
-            quote! {}
-        };
+        let short_attr = cli
+            .short
+            .map_or_else(|| quote! {}, |short| quote! { .short(#short) });
 
         Some(quote! {
             ::procenv::clap::Arg::new(#name_str)
@@ -458,16 +456,10 @@ impl FieldFactory {
             // - If struct has prefix = "APP_" and flatten has prefix = "DB_",
             //   the effective prefix for nested fields is "APP_DB_"
             // - If no struct prefix, just the flatten prefix is used
-            let effective_prefix = match flatten_prefix {
-                Some(field_prefix) => {
-                    // Combine struct prefix (if any) with the flatten prefix
-                    match prefix {
-                        Some(struct_prefix) => Some(format!("{struct_prefix}{field_prefix}")),
-                        None => Some(field_prefix),
-                    }
-                }
-                None => None, // No prefix propagation by default
-            };
+            let effective_prefix = flatten_prefix.map(|field_prefix| match prefix {
+                Some(struct_prefix) => format!("{struct_prefix}{field_prefix}"),
+                None => field_prefix,
+            });
 
             return Ok(Box::new(FlattenField {
                 name,

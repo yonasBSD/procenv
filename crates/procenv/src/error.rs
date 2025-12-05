@@ -103,9 +103,9 @@ impl MaybeRedacted {
     /// The original value is never stored.
     pub fn new(value: impl Into<String>, is_secret: bool) -> Self {
         if is_secret {
-            MaybeRedacted::Redacted
+            Self::Redacted
         } else {
-            MaybeRedacted::Plain(value.into())
+            Self::Plain(value.into())
         }
     }
 
@@ -115,23 +115,23 @@ impl MaybeRedacted {
     #[must_use]
     pub fn as_str(&self) -> Option<&str> {
         match self {
-            MaybeRedacted::Plain(s) => Some(s),
-            MaybeRedacted::Redacted => None,
+            Self::Plain(s) => Some(s),
+            Self::Redacted => None,
         }
     }
 
     /// Check if the value is redacted (was marked as secret).
     #[must_use]
-    pub fn is_redacted(&self) -> bool {
-        matches!(self, MaybeRedacted::Redacted)
+    pub const fn is_redacted(&self) -> bool {
+        matches!(self, Self::Redacted)
     }
 }
 
 impl Debug for MaybeRedacted {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            MaybeRedacted::Plain(s) => write!(f, "{s:?}"),
-            MaybeRedacted::Redacted => write!(f, "<redacted>"),
+            Self::Plain(s) => write!(f, "{s:?}"),
+            Self::Redacted => write!(f, "<redacted>"),
         }
     }
 }
@@ -139,8 +139,8 @@ impl Debug for MaybeRedacted {
 impl Display for MaybeRedacted {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            MaybeRedacted::Plain(s) => write!(f, "{s:?}"),
-            MaybeRedacted::Redacted => write!(f, "<redacted>"),
+            Self::Plain(s) => write!(f, "{s:?}"),
+            Self::Redacted => write!(f, "<redacted>"),
         }
     }
 }
@@ -395,7 +395,7 @@ pub enum Error {
 #[cfg(feature = "file")]
 impl From<file::FileError> for Error {
     fn from(source: file::FileError) -> Self {
-        Error::File { source }
+        Self::File { source }
     }
 }
 
@@ -404,15 +404,15 @@ impl From<file::FileError> for Error {
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Missing { var, .. } => {
+            Self::Missing { var, .. } => {
                 write!(f, "missing required environment variable: {var}")
             }
 
-            Error::InvalidUtf8 { var } => {
+            Self::InvalidUtf8 { var } => {
                 write!(f, "environment variable {var} contains invalid UTF-8")
             }
 
-            Error::Parse {
+            Self::Parse {
                 var,
                 value,
                 expected_type,
@@ -425,40 +425,40 @@ impl Display for Error {
                 )
             }
 
-            Error::Multiple { errors } => {
+            Self::Multiple { errors } => {
                 write!(f, "{} configuration error(s) occurred", errors.len())
             }
 
             #[cfg(feature = "file")]
-            Error::File { source } => {
+            Self::File { source } => {
                 write!(f, "configuration file error: {source}")
             }
 
-            Error::InvalidProfile { profile, var, .. } => {
+            Self::InvalidProfile { profile, var, .. } => {
                 write!(f, "invalid profile '{profile}' for {var}")
             }
 
-            Error::Provider {
+            Self::Provider {
                 provider, message, ..
             } => {
                 write!(f, "error connecting to {provider}: {message}")
             }
 
             #[cfg(feature = "validator")]
-            Error::Validation { errors } => {
+            Self::Validation { errors } => {
                 write!(f, "{} validation error(s) occurred", errors.len())
             }
 
             #[cfg(feature = "clap")]
-            Error::Cli { message } => {
+            Self::Cli { message } => {
                 write!(f, "CLI argument error: {message}")
             }
 
-            Error::KeyNotFound { key, .. } => {
+            Self::KeyNotFound { key, .. } => {
                 write!(f, "configuration key not found: {key}")
             }
 
-            Error::TypeMismatch {
+            Self::TypeMismatch {
                 key,
                 expected,
                 found,
@@ -470,7 +470,7 @@ impl Display for Error {
                 )
             }
 
-            Error::Extraction {
+            Self::Extraction {
                 field,
                 expected_type,
                 message,
@@ -495,21 +495,21 @@ impl Debug for Error {
     #[expect(clippy::too_many_lines)]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Missing { var, help } => {
+            Self::Missing { var, help } => {
                 writeln!(f, "procenv::missing_var")?;
                 writeln!(f)?;
                 writeln!(f, "  x missing required environment variable: {var}")?;
                 write!(f, "  help: {help}")
             }
 
-            Error::InvalidUtf8 { var } => {
+            Self::InvalidUtf8 { var } => {
                 writeln!(f, "procenv::invalid_utf8")?;
                 writeln!(f)?;
                 writeln!(f, "  x environment variable contains invalid UTF-8: {var}")?;
                 write!(f, "  help: ensure the variable contains valid UTF-8 text")
             }
 
-            Error::Parse {
+            Self::Parse {
                 var,
                 value,
                 expected_type,
@@ -524,22 +524,24 @@ impl Debug for Error {
                 write!(f, "  help: {help}")
             }
 
-            Error::Multiple { errors } => {
+            Self::Multiple { errors } => {
                 writeln!(f, "procenv::multiple_errors")?;
                 writeln!(f)?;
                 writeln!(f, "  x {} configuration error(s) occurred", errors.len())?;
                 writeln!(f, "  help: fix all listed configuration errors")?;
+
                 for error in errors {
                     writeln!(f)?;
                     write!(f, "{error:?}")?;
                 }
+
                 Ok(())
             }
 
             #[cfg(feature = "file")]
-            Error::File { source } => write!(f, "{source:?}"),
+            Self::File { source } => write!(f, "{source:?}"),
 
-            Error::InvalidProfile {
+            Self::InvalidProfile {
                 profile,
                 var,
                 valid_profiles,
@@ -552,7 +554,7 @@ impl Debug for Error {
                 write!(f, "  help: {help}")
             }
 
-            Error::Provider {
+            Self::Provider {
                 provider,
                 message,
                 help,
@@ -564,7 +566,7 @@ impl Debug for Error {
             }
 
             #[cfg(feature = "validator")]
-            Error::Validation { errors } => {
+            Self::Validation { errors } => {
                 writeln!(f, "procenv::validation_error")?;
                 writeln!(f)?;
                 writeln!(f, "  x validation failed")?;
@@ -575,14 +577,14 @@ impl Debug for Error {
             }
 
             #[cfg(feature = "clap")]
-            Error::Cli { message } => {
+            Self::Cli { message } => {
                 writeln!(f, "procenv::cli_error")?;
                 writeln!(f)?;
                 writeln!(f, "  x CLI argument parsing failed")?;
                 write!(f, "  | {message}")
             }
 
-            Error::KeyNotFound {
+            Self::KeyNotFound {
                 key,
                 available,
                 help,
@@ -594,7 +596,7 @@ impl Debug for Error {
                 write!(f, "  help: {help}")
             }
 
-            Error::TypeMismatch {
+            Self::TypeMismatch {
                 key,
                 expected,
                 found,
@@ -608,7 +610,7 @@ impl Debug for Error {
                 write!(f, "  help: {help}")
             }
 
-            Error::Extraction {
+            Self::Extraction {
                 field,
                 expected_type,
                 message,
@@ -628,9 +630,11 @@ impl Debug for Error {
 impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
-            Error::Parse { source, .. } => Some(source.as_ref()),
+            Self::Parse { source, .. } => Some(source.as_ref()),
+
             #[cfg(feature = "file")]
-            Error::File { source } => Some(source),
+            Self::File { source } => Some(source),
+
             _ => None,
         }
     }
@@ -648,7 +652,7 @@ impl Error {
     pub fn missing(var: impl Into<String>) -> Self {
         let var = var.into();
         let help = format!("set {var} in your environment or .env file");
-        Error::Missing { var, help }
+        Self::Missing { var, help }
     }
 
     /// Creates a Parse error with appropriate help text.
@@ -672,7 +676,8 @@ impl Error {
         let var = var.into();
         let expected_type = expected_type.into();
         let help = format!("expected a valid {expected_type}");
-        Error::Parse {
+
+        Self::Parse {
             var,
             value: MaybeRedacted::new(value, secret),
             expected_type,
@@ -684,14 +689,14 @@ impl Error {
     /// Collects multiple errors into a single Multiple error.
     /// Returns None if the input is empty.
     #[must_use]
-    pub fn multiple(errors: Vec<Error>) -> Option<Self> {
+    pub fn multiple(errors: Vec<Self>) -> Option<Self> {
         if errors.is_empty() {
             None
         } else if errors.len() == 1 {
             // Unwrap single error instead of wrapping
             errors.into_iter().next()
         } else {
-            Some(Error::Multiple { errors })
+            Some(Self::Multiple { errors })
         }
     }
 
@@ -703,7 +708,8 @@ impl Error {
         valid_profiles: Vec<&'static str>,
     ) -> Self {
         let valid_list = valid_profiles.join(", ");
-        Error::InvalidProfile {
+
+        Self::InvalidProfile {
             profile,
             var,
             help: format!("valid profiles are: {valid_list}"),
@@ -718,7 +724,8 @@ impl Error {
         } else {
             available.join(", ")
         };
-        Error::KeyNotFound {
+
+        Self::KeyNotFound {
             key: key.into(),
             help: format!("available keys: {available_str}"),
             available,
@@ -731,7 +738,7 @@ impl Error {
         expected: &'static str,
         found: &'static str,
     ) -> Self {
-        Error::TypeMismatch {
+        Self::TypeMismatch {
             key: key.into(),
             expected,
             found,
@@ -748,7 +755,8 @@ impl Error {
         message: impl Into<String>,
     ) -> Self {
         let expected_type = expected_type.into();
-        Error::Extraction {
+
+        Self::Extraction {
             field: field.into(),
             expected_type: expected_type.clone(),
             message: message.into(),

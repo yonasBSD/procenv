@@ -143,9 +143,7 @@ impl ValidationFieldError {
 
     /// Convert validator crate errors to our error type.
     #[must_use]
-    pub fn validation_errors_to_procenv(
-        errors: &::validator::ValidationErrors,
-    ) -> Vec<ValidationFieldError> {
+    pub fn validation_errors_to_procenv(errors: &::validator::ValidationErrors) -> Vec<Self> {
         // Collect flat field errors
         let flat_errors = errors
             .field_errors()
@@ -160,6 +158,7 @@ impl ValidationFieldError {
         let nested_errors = errors.errors().iter().filter_map(|(field, nested)| {
             if let ::validator::ValidationErrorsKind::Struct(nested) = nested {
                 let nested_field_errors = Self::validation_errors_to_procenv(&nested.clone());
+
                 Some(nested_field_errors.into_iter().map(move |mut err| {
                     err.field = format!("{}.{}", field, err.field);
                     err
