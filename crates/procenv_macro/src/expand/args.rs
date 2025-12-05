@@ -271,88 +271,97 @@ fn generate_cli_aware_loader(
 }
 
 /// Generate source tracking that accounts for CLI values.
+///
+/// Determines the source of a field's value with priority:
+/// CLI > Profile > Env/Dotenv > Default > NotSet
+#[expect(
+    clippy::option_if_let_else,
+    reason = "70+ lines of nested quote! blocks are far clearer with if-let than map_or_else closures"
+)]
 fn generate_cli_aware_source_tracking(field: &dyn FieldGenerator) -> QuoteStream {
     let name = field.name();
     let name_str = name.to_string();
     let from_cli_var = format_ident!("__{}_from_cli", name);
     let source_ident = format_ident!("__{}_source", name);
 
-    field.env_var_name().map_or_else(|| field.generate_source_tracking(), |env_var| if field.cli_config().is_some() {
-            // CLI-enabled field: check if value came from CLI, profile, env, or default
-            let has_profile = field.profile_config().is_some();
-            let has_default = field.default_value().is_some();
+    // Flatten fields or fields without env var use standard tracking
+    let Some(env_var) = field.env_var_name() else {
+        return field.generate_source_tracking();
+    };
 
-            // Build source determination with proper priority:
-            // CLI > Profile > Env/Dotenv > Default > NotSet
-            // Note: We use tracking variables only when they're guaranteed to exist
-            if has_profile {
-                let profile_used_ident = format_ident!("__{}_from_profile", name);
-                let used_default_ident = format_ident!("__{}_used_default", name);
+    // Non-CLI fields use standard tracking
+    if field.cli_config().is_none() {
+        return field.generate_source_tracking();
+    }
 
-                let default_check = if has_default {
-                    quote! {
-                        else if #used_default_ident {
-                            ::procenv::ValueSource::new(#env_var, ::procenv::Source::Default)
-                        }
-                    }
-                } else {
-                    quote! {}
-                };
+    // CLI-enabled field: check if value came from CLI, profile, env, or default
+    let has_profile = field.profile_config().is_some();
+    let has_default = field.default_value().is_some();
 
-                quote! {
-                    let #source_ident = if #from_cli_var {
-                        ::procenv::ValueSource::new(#env_var, ::procenv::Source::Cli)
-                    } else if #profile_used_ident {
-                        ::procenv::ValueSource::new(
-                            #env_var,
-                            ::procenv::Source::Profile(__profile.clone().unwrap_or_default())
-                        )
-                    } else if std::env::var(#env_var).is_ok() {
-                        if __dotenv_loaded && !__pre_dotenv_vars.contains(#env_var) {
-                            ::procenv::ValueSource::new(#env_var, ::procenv::Source::DotenvFile(None))
-                        } else {
-                            ::procenv::ValueSource::new(#env_var, ::procenv::Source::Environment)
-                        }
-                    }
-                    #default_check
-                    else {
-                        ::procenv::ValueSource::new(#env_var, ::procenv::Source::NotSet)
-                    };
-                    __sources.add(#name_str, #source_ident);
-                }
-            } else {
-                // No profile config - simpler source tracking
-                // For fields with defaults, check if env var exists; if not, it's from Default
-                let default_fallback = if has_default {
-                    quote! {
-                        else if #name.is_some() {
-                            // Value exists but not from CLI or env - must be from default
-                            ::procenv::ValueSource::new(#env_var, ::procenv::Source::Default)
-                        }
-                    }
-                } else {
-                    quote! {}
-                };
+    if has_profile {
+        let profile_used_ident = format_ident!("__{}_from_profile", name);
+        let used_default_ident = format_ident!("__{}_used_default", name);
 
-                quote! {
-                    let #source_ident = if #from_cli_var {
-                        ::procenv::ValueSource::new(#env_var, ::procenv::Source::Cli)
-                    } else if std::env::var(#env_var).is_ok() {
-                        if __dotenv_loaded && !__pre_dotenv_vars.contains(#env_var) {
-                            ::procenv::ValueSource::new(#env_var, ::procenv::Source::DotenvFile(None))
-                        } else {
-                            ::procenv::ValueSource::new(#env_var, ::procenv::Source::Environment)
-                        }
-                    }
-                    #default_fallback
-                    else {
-                        ::procenv::ValueSource::new(#env_var, ::procenv::Source::NotSet)
-                    };
-                    __sources.add(#name_str, #source_ident);
+        let default_check = if has_default {
+            quote! {
+                else if #used_default_ident {
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::Default)
                 }
             }
         } else {
-            // Non-CLI field: use standard source tracking
-            field.generate_source_tracking()
-        })
+            quote! {}
+        };
+
+        quote! {
+            let #source_ident = if #from_cli_var {
+                ::procenv::ValueSource::new(#env_var, ::procenv::Source::Cli)
+            } else if #profile_used_ident {
+                ::procenv::ValueSource::new(
+                    #env_var,
+                    ::procenv::Source::Profile(__profile.clone().unwrap_or_default())
+                )
+            } else if std::env::var(#env_var).is_ok() {
+                if __dotenv_loaded && !__pre_dotenv_vars.contains(#env_var) {
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::DotenvFile(None))
+                } else {
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::Environment)
+                }
+            }
+            #default_check
+            else {
+                ::procenv::ValueSource::new(#env_var, ::procenv::Source::NotSet)
+            };
+            __sources.add(#name_str, #source_ident);
+        }
+    } else {
+        // No profile config - simpler source tracking
+        // For fields with defaults, check if env var exists; if not, it's from Default
+        let default_fallback = if has_default {
+            quote! {
+                else if #name.is_some() {
+                    // Value exists but not from CLI or env - must be from default
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::Default)
+                }
+            }
+        } else {
+            quote! {}
+        };
+
+        quote! {
+            let #source_ident = if #from_cli_var {
+                ::procenv::ValueSource::new(#env_var, ::procenv::Source::Cli)
+            } else if std::env::var(#env_var).is_ok() {
+                if __dotenv_loaded && !__pre_dotenv_vars.contains(#env_var) {
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::DotenvFile(None))
+                } else {
+                    ::procenv::ValueSource::new(#env_var, ::procenv::Source::Environment)
+                }
+            }
+            #default_fallback
+            else {
+                ::procenv::ValueSource::new(#env_var, ::procenv::Source::NotSet)
+            };
+            __sources.add(#name_str, #source_ident);
+        }
+    }
 }

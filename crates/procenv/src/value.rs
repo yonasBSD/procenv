@@ -502,24 +502,27 @@ impl ConfigValue {
     /// Used by macro generated `__from_json_value()` methods.
     #[cfg(feature = "file")]
     #[must_use]
+    #[expect(
+        clippy::option_if_let_else,
+        reason = "nested map_or_else hurts readability and debug performance; if-else chain is clearer for number type coercion"
+    )]
     pub fn from_json(value: SJSON::Value) -> Self {
         match value {
             SJSON::Value::Null => Self::None,
 
             SJSON::Value::Bool(b) => Self::Boolean(b),
 
-            SJSON::Value::Number(n) => n.as_i64().map_or_else(
-                || {
-                    n.as_u64().map_or_else(
-                        || {
-                            n.as_f64()
-                                .map_or_else(|| Self::String(n.to_string()), ConfigValue::Float)
-                        },
-                        ConfigValue::UnsignedInteger,
-                    )
-                },
-                ConfigValue::Integer,
-            ),
+            SJSON::Value::Number(n) => {
+                if let Some(i) = n.as_i64() {
+                    Self::Integer(i)
+                } else if let Some(u) = n.as_u64() {
+                    Self::UnsignedInteger(u)
+                } else if let Some(f) = n.as_f64() {
+                    Self::Float(f)
+                } else {
+                    Self::String(n.to_string())
+                }
+            }
 
             SJSON::Value::String(s) => Self::String(s),
 
